@@ -327,13 +327,14 @@ function MilestoneDetail({ milestone, onClose, onUpdate, onRemove }) {
         transition={{ type: "spring", damping: 24, stiffness: 240 }}
         onClick={(e) => e.stopPropagation()}
         className="fixed top-0 right-0 h-full w-full max-w-lg bg-paper dark:bg-night border-l border-line dark:border-night-border overflow-y-auto"
+        data-testid="milestone-detail-drawer"
       >
         <div className="sticky top-0 flex items-center justify-between p-5 bg-paper/95 dark:bg-night/95 backdrop-blur border-b border-line dark:border-night-border">
           <div className="min-w-0">
             <div className="eyebrow">{formatMonthYear(milestone.month, milestone.year)}</div>
             <div className="h-display text-[22px] mt-1 truncate">{milestone.title}</div>
           </div>
-          <button onClick={onClose} className="p-1.5 -mr-1 rounded-md hover:bg-line/50">
+          <button onClick={onClose} className="p-1.5 -mr-1 rounded-md hover:bg-line/50" data-testid="close-milestone-detail">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -342,12 +343,38 @@ function MilestoneDetail({ milestone, onClose, onUpdate, onRemove }) {
             <span className="chip" style={{ background: `${meta.color}18`, color: meta.color }}>{meta.label}</span>
             <span className="chip">{(CAREER_TYPES.find(t=>t.key===milestone.type)?.label) || milestone.type}</span>
           </div>
-          {milestone.organization && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Bulan">
+              <select
+                className="input"
+                value={milestone.month}
+                onChange={(e) => onUpdate({ month: Number(e.target.value) })}
+                data-testid="milestone-month"
+              >
+                {["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"].map((m, i) => (
+                  <option key={m} value={i + 1}>{m}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Tahun">
+              <input
+                type="number"
+                min="2000"
+                max="2100"
+                className="input"
+                value={milestone.year}
+                onChange={(e) => onUpdate({ year: Number(e.target.value) })}
+                data-testid="milestone-year"
+              />
+            </Field>
+          </div>
+          {(
             <Field label="Organisasi / penerbit">
               <input
                 className="input"
-                value={milestone.organization}
+                value={milestone.organization || ""}
                 onChange={(e) => onUpdate({ organization: e.target.value })}
+                data-testid="milestone-organization"
               />
             </Field>
           )}

@@ -62,6 +62,7 @@ export default function NotificationsDrawer() {
               {list.map((n) => (
                 <button
                   key={n.id}
+                  data-testid={`notification-${n.id}`}
                   onClick={() => markRead(n.id)}
                   className={clsx(
                     "block w-full text-left rounded-xl p-4 border transition-all",

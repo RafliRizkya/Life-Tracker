@@ -21,7 +21,6 @@ import {
   skillMomentum,
 } from "@/lib/insights";
 import {
-  greetingForNow,
   formatIDR,
   formatIDRShort,
   formatDateID,
