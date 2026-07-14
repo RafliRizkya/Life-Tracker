@@ -235,6 +235,141 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
   return insights;
 }
 
+/* ---------- Reflection pattern insights ---------- */
+
+const STOPWORDS_ID = new Set([
+  "yang","dan","atau","untuk","dari","dengan","ke","di","ini","itu","aku",
+  "saya","kita","kami","kamu","kau","dia","mereka","ada","tidak","juga",
+  "sudah","belum","masih","lagi","saja","tapi","namun","karena","supaya",
+  "agar","kalau","jika","hanya","sangat","sekali","paling","tetap","akan",
+  "bisa","dapat","harus","perlu","biar","biasa","apa","apapun","semua",
+  "adalah","yaitu","yakni","atas","bawah","dalam","luar","antara","tanpa",
+  "seperti","seolah","hingga","sampai","namanya","begitu","gitu","banget",
+  "kayak","kek","udah","enggak","gak","nggak","ga","aja","dong","sih","kok",
+  "the","a","an","of","to","and","or","in","on","for","is","this","that",
+  "with","as","at","be","it","by","from","are","was","were","have","has","had"
+]);
+
+export function reflectionInsights(reflections, wins, goals, skills) {
+  const now = Date.now();
+  const in30d = reflections.filter(
+    (r) => now - new Date(r.createdAt).getTime() <= 30 * 86400000
+  );
+  const in7d = reflections.filter(
+    (r) => now - new Date(r.createdAt).getTime() <= 7 * 86400000
+  );
+  const winsIn30d = wins.filter(
+    (w) => now - new Date(w.createdAt).getTime() <= 30 * 86400000
+  );
+
+  // Word frequency (top 3) across "lesson", "whatFeltHeavy", answers
+  const bag = [];
+  for (const r of in30d) {
+    const chunks = [
+      r.lesson, r.whatFeltHeavy, r.whatWentWell, r.smallStep, r.currentState,
+      ...Object.values(r.answers || {}),
+    ].filter(Boolean).join(" ");
+    for (const w of chunks.toLowerCase().split(/[^a-zà-ÿ]+/i)) {
+      if (!w || w.length < 4) continue;
+      if (STOPWORDS_ID.has(w)) continue;
+      bag.push(w);
+    }
+  }
+  const freq = new Map();
+  bag.forEach((w) => freq.set(w, (freq.get(w) || 0) + 1));
+  const topWords = [...freq.entries()]
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  // Most linked goal / skill
+  const goalCount = new Map();
+  const skillCount = new Map();
+  for (const r of in30d) {
+    (r.linkedGoals || []).forEach((g) => goalCount.set(g, (goalCount.get(g) || 0) + 1));
+    (r.linkedSkills || []).forEach((s) => skillCount.set(s, (skillCount.get(s) || 0) + 1));
+  }
+  const topGoalId = [...goalCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const topSkillId = [...skillCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const topGoal = topGoalId && goals.find((g) => g.id === topGoalId);
+  const topSkill = topSkillId && skills.find((s) => s.id === topSkillId);
+
+  // Pending actions
+  const pending = [];
+  for (const r of reflections) {
+    for (const a of r.improvementActions || []) {
+      if (!a.convertedToCommitmentId) pending.push({ reflectionId: r.id, ...a });
+    }
+  }
+
+  const insights = [];
+
+  if (in30d.length >= 3) {
+    insights.push({
+      key: "consistent",
+      tone: "positive",
+      title: `Kamu sudah berhenti sejenak ${in30d.length} kali bulan ini`,
+      body: "Konsistensi kecil seperti ini yang menyusun cerita jangka panjangmu — tanpa harus dilihat siapa pun.",
+    });
+  } else if (in7d.length === 0 && reflections.length > 0) {
+    insights.push({
+      key: "quiet-week",
+      tone: "gentle",
+      title: "Sudah beberapa hari tidak ada refleksi",
+      body: "Tidak apa-apa. Ruang ini akan tetap di sini kapanpun kamu siap.",
+    });
+  }
+
+  if (topWords.length > 0) {
+    insights.push({
+      key: "word-pattern",
+      tone: "gentle",
+      title: `Kata &ldquo;${topWords[0][0]}&rdquo; muncul ${topWords[0][1]} kali`,
+      body: "Perhatikan pola ini — sering kali kata yang terulang membawa petunjuk yang penting.",
+      meta: topWords,
+    });
+  }
+
+  if (topGoal) {
+    insights.push({
+      key: "top-goal",
+      tone: "positive",
+      title: `Refleksimu banyak berputar di sekitar "${topGoal.title}"`,
+      body: "Tanda bahwa hatimu sedang serius pada arah ini. Boleh lebih dilindungi ruangnya.",
+    });
+  }
+
+  if (topSkill) {
+    insights.push({
+      key: "top-skill",
+      tone: "gentle",
+      title: `Skill "${topSkill.name}" paling sering hadir di refleksimu`,
+      body: "Kalau ada satu tempat untuk investasi waktu minggu ini — ini kandidat kuatnya.",
+    });
+  }
+
+  if (winsIn30d.length >= 3) {
+    insights.push({
+      key: "wins-glow",
+      tone: "positive",
+      title: `${winsIn30d.length} kemenangan kecil bulan ini`,
+      body: "Yang kadang terlihat 'biasa saja' ternyata menumpuk. Baca ulang saat hari terasa berat.",
+    });
+  }
+
+  if (pending.length > 0) {
+    insights.push({
+      key: "pending-actions",
+      tone: "gentle",
+      title: `Ada ${pending.length} improvement action yang menunggu`,
+      body: "Bukan pengingat, hanya undangan. Ubah jadi commitment kalau memang terasa tepat.",
+      meta: { pendingCount: pending.length },
+    });
+  }
+
+  return { insights, topWords, topGoal, topSkill, pending, in30dCount: in30d.length };
+}
+
 /* ---------- Goal progress helper ---------- */
 
 export function computeGoalProgress(goal, ctx) {

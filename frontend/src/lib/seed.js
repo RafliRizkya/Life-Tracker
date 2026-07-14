@@ -491,6 +491,168 @@ export const seedActivity = [
   { id: "act-3", userId: USER_ID, kind: "skill", message: "SQL & Querying naik ke Level 3.", createdAt: subtractDaysISO(4) },
 ];
 
+/* ---------- Reflections (Ruang Berbenah) ---------- */
+
+export const REFLECTION_TEMPLATES = {
+  career: {
+    key: "career",
+    label: "Career",
+    accent: "#315d48",
+    tagline: "Menepi sejenak dari kejar-kejaran karier.",
+    prompts: [
+      { key: "momentum", label: "Momentum minggu ini di karier — bagaimana rasanya?" },
+      { key: "proof", label: "Bukti kecil apa yang aku bangun (bahkan yang belum sempurna)?" },
+      { key: "growing", label: "Skill mana yang sedang tumbuh — meski pelan?" },
+      { key: "slowing", label: "Apa yang membuat progres terasa melambat?" },
+      { key: "minimum", label: "Langkah paling minim yang bisa membawa dampak minggu depan?" },
+    ],
+  },
+  finance: {
+    key: "finance",
+    label: "Finance",
+    accent: "#eb9b63",
+    tagline: "Pandang uangmu dengan ketenangan, bukan kekhawatiran.",
+    prompts: [
+      { key: "pattern", label: "Pola pengeluaran yang mulai aku sadari?" },
+      { key: "proud", label: "Keputusan finansial yang aku syukuri minggu ini?" },
+      { key: "conscious", label: "Godaan yang berhasil aku pilih dengan sadar?" },
+      { key: "feeling", label: "Bagaimana perasaanku terhadap tabunganku saat ini?" },
+      { key: "boundary", label: "Satu batas kecil yang ingin aku pegang minggu depan?" },
+    ],
+  },
+  growth: {
+    key: "growth",
+    label: "Growth",
+    accent: "#a8c845",
+    tagline: "Aku sedang menjadi siapa?",
+    prompts: [
+      { key: "becoming", label: "Aku semakin siapa akhir-akhir ini?" },
+      { key: "habits", label: "Kebiasaan kecil apa yang mulai membentuk aku?" },
+      { key: "holding", label: "Apa yang menahanku dari versi berikutnya?" },
+      { key: "influence", label: "Buku, orang, atau ide yang memengaruhi aku minggu ini?" },
+      { key: "ritual", label: "Satu ritual kecil yang ingin aku pelihara?" },
+    ],
+  },
+  decision: {
+    key: "decision",
+    label: "Decision",
+    accent: "#c9743c",
+    tagline: "Berpikir jernih sebelum memilih.",
+    prompts: [
+      { key: "question", label: "Keputusan apa yang sedang aku pertimbangkan?" },
+      { key: "context", label: "Konteks — apa yang perlu aku pertimbangkan?" },
+      { key: "options", label: "Opsi yang tersedia?" },
+      { key: "fear", label: "Yang aku takuti dari tiap opsi?" },
+      { key: "values", label: "Pilihan mana yang paling selaras dengan nilai-nilaiku?" },
+    ],
+  },
+  gratitude: {
+    key: "gratitude",
+    label: "Gratitude",
+    accent: "#8a9a5b",
+    tagline: "Yang mudah dilupakan, yang layak diingat.",
+    prompts: [
+      { key: "three", label: "Tiga hal yang membuatku bersyukur hari ini?" },
+      { key: "people", label: "Orang yang membuatku merasa didukung?" },
+      { key: "moment", label: "Momen kecil menyenangkan minggu ini?" },
+      { key: "body", label: "Kemampuan tubuh atau pikiran yang aku hargai?" },
+      { key: "taken_for_granted", label: "Yang kadang aku anggap remeh tapi sebenarnya berharga?" },
+    ],
+  },
+};
+
+export const REFLECTION_MOOD_WORDS = [
+  "tenang", "penasaran", "bersyukur", "lelah", "fokus",
+  "gelisah", "bersemangat", "sabar", "tersadar", "berat",
+];
+
+export const seedReflections = [
+  {
+    id: "rf-1",
+    userId: USER_ID,
+    kind: "quick",
+    template: null,
+    moodWord: "tenang",
+    currentState:
+      "Cukup fokus tapi masih terpecah antara belajar SQL dan pekerjaan kantor.",
+    whatWentWell:
+      "Selesai satu bab SQL join dan kirim satu pesan networking ke teman lama.",
+    whatFeltHeavy:
+      "Sulit menutup laptop malam hari — otak masih ingin lanjut belajar.",
+    lesson:
+      "Kualitas 30 menit yang fokus lebih baik dari 2 jam sambil scroll.",
+    smallStep: "Timer 30 menit + notifikasi off saat sesi belajar berikutnya.",
+    answers: {},
+    linkedGoals: ["goal-data-analyst"],
+    linkedSkills: ["sk-1"],
+    linkedTransactions: [],
+    linkedCommitments: ["c-1"],
+    linkedReview: null,
+    tags: ["fokus", "belajar"],
+    improvementActions: [
+      { id: id(), text: "Aktifkan mode 30-menit fokus untuk SQL besok.", convertedToCommitmentId: null },
+      { id: id(), text: "Tutup laptop 22.00 selama 3 hari ke depan.", convertedToCommitmentId: null },
+    ],
+    isPrivate: true,
+    createdAt: subtractDaysISO(2),
+  },
+  {
+    id: "rf-2",
+    userId: USER_ID,
+    kind: "deep",
+    template: "career",
+    moodWord: "penasaran",
+    currentState: "",
+    whatWentWell: "",
+    whatFeltHeavy: "",
+    lesson: "",
+    smallStep: "",
+    answers: {
+      momentum:
+        "Momentumnya kecil tapi konsisten. Portfolio project #2 mulai punya struktur.",
+      proof:
+        "Setup notebook analisis cashflow + dua chart pertama.",
+      growing:
+        "SQL joins mulai terasa natural saat baca query orang lain.",
+      slowing:
+        "Konteks pekerjaan kantor yang menyita 2 sore per minggu.",
+      minimum:
+        "Blok 3 sesi 45 menit di kalender untuk portfolio project #2.",
+    },
+    linkedGoals: ["goal-data-analyst", "goal-portfolio-5"],
+    linkedSkills: ["sk-1", "sk-2"],
+    linkedTransactions: [],
+    linkedCommitments: [],
+    linkedReview: null,
+    tags: ["portfolio", "sql"],
+    improvementActions: [
+      { id: id(), text: "Blok 3 sesi 45 menit portfolio project #2 minggu ini.", convertedToCommitmentId: null },
+    ],
+    isPrivate: true,
+    createdAt: subtractDaysISO(6),
+  },
+];
+
+export const seedWins = [
+  { id: "w-1", userId: USER_ID, kind: "win", text: "Selesai bab SQL join tanpa lihat solusi.", createdAt: subtractDaysISO(1) },
+  { id: "w-2", userId: USER_ID, kind: "gratitude", text: "Motor masih sehat dan mengantarku sampai tempat kerja pagi ini.", createdAt: subtractDaysISO(2) },
+  { id: "w-3", userId: USER_ID, kind: "gratitude", text: "Teman lama membalas pesan LinkedIn dengan hangat.", createdAt: subtractDaysISO(3) },
+  { id: "w-4", userId: USER_ID, kind: "win", text: "Berhasil menahan pembelian gadget yang belum urgent.", createdAt: subtractDaysISO(5) },
+];
+
+export const seedLetters = [
+  {
+    id: "lt-1",
+    userId: USER_ID,
+    title: "Untuk Rafli 3 bulan lagi",
+    body:
+      "Kalau kamu membaca ini, aku harap kamu ingat bahwa awal itu selalu terasa lambat. Portfolio pertamamu mungkin belum sempurna, tabunganmu mungkin belum sebesar yang kamu bayangkan — tapi kamu masih di sini, dan itu sudah lebih dari cukup untuk hari ini. Teruskan sesi SQL 30 menit itu. Teruskan simpan sebagian gaji. Teruskan bilang \"ya\" pada satu percakapan baru per minggu. Kalau nanti ada hal berat, ingat: kamu sudah pernah melewatinya sebelumnya.",
+    sealedUntil: (() => { const d = new Date(); d.setMonth(d.getMonth() + 3); return d.toISOString().slice(0, 10); })(),
+    opened: false,
+    createdAt: subtractDaysISO(10),
+  },
+];
+
 /* ---------- User ---------- */
 
 export const seedUser = {
@@ -639,6 +801,9 @@ export function buildInitialState() {
     commitments: seedCommitments,
     notifications: seedNotifications,
     activity: seedActivity,
+    reflections: seedReflections,
+    wins: seedWins,
+    letters: seedLetters,
     settings: {
       theme: "light",
       reducedMotion: false,

@@ -65,6 +65,9 @@ function persistableSlice(s) {
     commitments: s.commitments,
     notifications: s.notifications,
     activity: s.activity,
+    reflections: s.reflections,
+    wins: s.wins,
+    letters: s.letters,
     settings: s.settings,
   };
 }
@@ -88,7 +91,14 @@ export const useLifeStore = create((set, get) => ({
   hydrate: () => {
     const stored = loadFromStorage();
     if (stored) {
-      set({ ...stored, hydrated: true });
+      // Backfill new fields on state saved by older versions.
+      set({
+        ...stored,
+        reflections: stored.reflections ?? initial.reflections,
+        wins: stored.wins ?? initial.wins,
+        letters: stored.letters ?? initial.letters,
+        hydrated: true,
+      });
     } else {
       set({ hydrated: true });
       saveToStorage(persistableSlice(get()));
@@ -474,6 +484,144 @@ export const useLifeStore = create((set, get) => ({
       createdAt: nowISO(),
     };
     set({ activity: [entry, ...get().activity].slice(0, 80) });
+  },
+
+  // ---------- Reflections ----------
+  addReflection: (payload) => {
+    const r = {
+      id: nanoid(10),
+      userId: USER_ID,
+      kind: "quick", // quick | deep
+      template: null, // for deep: career | finance | growth | decision | gratitude
+      moodWord: "",
+      // Quick fields
+      currentState: "",
+      whatWentWell: "",
+      whatFeltHeavy: "",
+      lesson: "",
+      smallStep: "",
+      // Deep answers (variable by template)
+      answers: {},
+      // Links
+      linkedGoals: [],
+      linkedSkills: [],
+      linkedTransactions: [],
+      linkedCommitments: [],
+      linkedReview: null,
+      tags: [],
+      // Improvement actions (up to 3)
+      improvementActions: [],
+      // Privacy
+      isPrivate: true,
+      createdAt: nowISO(),
+      ...payload,
+    };
+    set({ reflections: [r, ...get().reflections] });
+    get().logActivity("reflection", `Refleksi baru disimpan (${r.kind}).`);
+    get().persist();
+    return r;
+  },
+  updateReflection: (id, patch) => {
+    set({
+      reflections: get().reflections.map((r) =>
+        r.id === id ? { ...r, ...patch } : r
+      ),
+    });
+    get().persist();
+  },
+  removeReflection: (id) => {
+    set({ reflections: get().reflections.filter((r) => r.id !== id) });
+    get().persist();
+  },
+  convertActionToCommitment: (reflectionId, actionId) => {
+    const r = get().reflections.find((x) => x.id === reflectionId);
+    if (!r) return;
+    const action = (r.improvementActions || []).find((a) => a.id === actionId);
+    if (!action || action.convertedToCommitmentId) return;
+
+    const c = {
+      id: nanoid(10),
+      userId: USER_ID,
+      title: action.text,
+      area: r.template === "finance" ? "finance"
+           : r.template === "career" ? "career"
+           : r.template === "growth" ? "growth"
+           : "growth",
+      dueDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+      done: false,
+      priority: "medium",
+      fromReflection: r.id,
+    };
+    set({
+      commitments: [c, ...get().commitments],
+      reflections: get().reflections.map((rr) =>
+        rr.id === reflectionId
+          ? {
+              ...rr,
+              improvementActions: rr.improvementActions.map((a) =>
+                a.id === actionId ? { ...a, convertedToCommitmentId: c.id } : a
+              ),
+            }
+          : rr
+      ),
+    });
+    get().logActivity(
+      "reflection",
+      `Improvement action dijadikan commitment: "${action.text}".`
+    );
+    get().persist();
+  },
+
+  // ---------- Wins & gratitude ----------
+  addWin: (payload) => {
+    const w = {
+      id: nanoid(8),
+      userId: USER_ID,
+      kind: "win", // win | gratitude
+      text: "",
+      createdAt: nowISO(),
+      ...payload,
+    };
+    set({ wins: [w, ...get().wins] });
+    get().logActivity(
+      "reflection",
+      `${w.kind === "gratitude" ? "Gratitude" : "Win"} dicatat.`
+    );
+    get().persist();
+  },
+  removeWin: (id) => {
+    set({ wins: get().wins.filter((w) => w.id !== id) });
+    get().persist();
+  },
+
+  // ---------- Letter to future self ----------
+  addLetter: (payload) => {
+    const l = {
+      id: nanoid(10),
+      userId: USER_ID,
+      title: "Surat untuk diri yang akan datang",
+      body: "",
+      sealedUntil: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+      opened: false,
+      createdAt: nowISO(),
+      ...payload,
+    };
+    set({ letters: [l, ...get().letters] });
+    get().logActivity("reflection", `Surat untuk diri sendiri ditulis.`);
+    get().persist();
+    return l;
+  },
+  openLetter: (id) => {
+    set({
+      letters: get().letters.map((l) =>
+        l.id === id ? { ...l, opened: true, openedAt: nowISO() } : l
+      ),
+    });
+    get().persist();
+  },
+  removeLetter: (id) => {
+    set({ letters: get().letters.filter((l) => l.id !== id) });
+    get().persist();
   },
 }));
 
