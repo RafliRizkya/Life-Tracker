@@ -6,7 +6,7 @@ Full original spec (ambitious, not fully built): `docs/prompt/ai-personal-operat
 
 ## What "done" means for this pass
 
-A working `/ai` page where Rafli can ask questions about his Finance/Goals/Career/Skills/Reflection/Weekly Review data and get a streaming, markdown-formatted answer grounded in that data, with a citation badge showing which modules were used. Read-only — the assistant cannot add/edit/delete anything.
+A working `/ai` page where Rafli can ask questions about his Finance/Goals/Career/Skills/Life Compass (Reflection + Weekly Review, merged 2026-07-18 — see `docs/features/life-compass.md`) data and get a streaming, markdown-formatted answer grounded in that data, with a citation badge showing which modules were used. Read-only — the assistant cannot add/edit/delete anything.
 
 ## Confirmed decisions
 
@@ -38,7 +38,9 @@ Browser: reader loop appends streamed tokens into the chat thread, renders markd
 
 ## Hard privacy rule (verified at the network layer, not just by code review)
 
-Raw reflection/letter body text is **never** assembled into outbound context, regardless of intent — only the aggregated, non-quoting output of `reflectionInsights()` (word-frequency counts, top linked goal/skill, pending-action counts) is available to the model.
+Raw reflection/letter/weekly-review body text is **never** assembled into outbound context, regardless of intent — only the aggregated, non-quoting output of `reflectionInsights()` (word-frequency counts, top linked goal/skill, pending-action counts) and `reviewInsights()` (30-day ritual count, average energy/stress) is available to the model.
+
+**2026-07-18 fix:** `buildReview()` originally sent raw `highlights`/`blockers`/`finance`/`careerProgress` text straight into context — a real gap, found and closed during the Life Compass merge (Weekly Review had no `isPrivate` concept before that, so the existing `stripPrivateContent()` string-match couldn't catch it). It now goes through `reviewInsights()` exactly like reflections do. See `docs/features/life-compass.md`.
 
 **Verified this actually holds** by pointing `OPENROUTER_BASE_URL` at a local echo server, adding a private reflection with a unique marker string, asking a reflection-related question, and confirming the marker never appeared in the request body that reached the (fake) OpenRouter endpoint. Also verified: a finance-only question's context contains *only* the `finance` key — no goals/career/reflection data rides along, even mid-conversation with prior turns in history.
 

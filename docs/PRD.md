@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| **Versi** | 2.0 |
-| **Tanggal** | 17 Juli 2026 |
+| **Versi** | 2.1 |
+| **Tanggal** | 18 Juli 2026 |
 | **Author** | Rafli Akbar |
 | **Status** | Phase 1 — Released |
 | **Repo** | [RafliRizkya/Life-Tracker](https://github.com/RafliRizkya/Life-Tracker) |
@@ -14,7 +14,7 @@
 
 ## 1. Ringkasan Produk
 
-**Rafli Life Tracker** adalah *personal life operating system* yang menggabungkan **Career Journey**, **Finance**, **Goals**, **Skills**, **Reflection**, dan **Weekly Review** dalam satu tempat yang tenang, hangat, dan personal.
+**Rafli Life Tracker** adalah *personal life operating system* yang menggabungkan **Career Journey**, **Finance**, **Goals**, **Skills**, dan **Life Compass** (refleksi + ritual mingguan) dalam satu tempat yang tenang, hangat, dan personal.
 
 Aplikasi ini dirancang khusus untuk **Rafli Akbar**, seorang profesional yang sedang membangun karier sebagai **Data Analyst**, menyusun keuangan menuju Financial Freedom, dan menaikkan skill secara sadar.
 
@@ -30,8 +30,7 @@ Rafli membutuhkan satu tempat terpadu untuk:
 - **Mengatur keuangan** (income, expense, saving rate, spending score) dalam IDR
 - **Menetapkan & memantau goals** hidup yang hierarkis dan terukur
 - **Mengasah skills** secara deliberate dengan momentum tracking
-- **Refleksi diri** yang privat, berpola, dan bermakna
-- **Review mingguan** dengan rangkuman otomatis berbasis data
+- **Life Compass**: refleksi diri yang privat & berpola, plus ritual mingguan (Past/Present/Future) dengan momentum/burnout indicator dan narasi mingguan otomatis
 
 ---
 
@@ -74,10 +73,10 @@ Rafli membutuhkan satu tempat terpadu untuk:
 ### 4.3 Career
 | ID | User Story | AC |
 |---|---|---|
-| US-15 | Saya ingin melihat career timeline imersif | Growing line + stagger reveal per node |
+| US-15 | Saya ingin melihat career journey dalam dua jalur terpisah, dengan title/tanggal/preview langsung terbaca tanpa klik | Dua lane berdampingan — "Jejak Profesional" (pengalaman kerja, kronologis) dan "Milestone & Pencapaian" (pendidikan/sertifikasi) — tiap kartu menampilkan title, organisasi, rentang tanggal + durasi, dan deskripsi singkat langsung; klik hanya untuk detail/highlight lengkap |
 | US-16 | Saya ingin filter timeline berdasarkan type & range waktu | Type: education, certificate, experience, project, skill, target |
-| US-17 | Saya ingin menambah milestone baru | Via Quick Add atau tombol di page |
-| US-18 | Saya ingin edit detail milestone di drawer | Month, year, organization, description, skills, evidence URL, status, contribution |
+| US-17 | Saya ingin menambah milestone baru | Via Quick Add atau tombol di page — termasuk lokasi dan status "masih berlangsung" |
+| US-18 | Saya ingin edit detail milestone di drawer | Bulan/tahun mulai & selesai (atau "Sekarang"), organization, lokasi, description singkat, detail/highlight (multi-baris), skills, evidence URL, status, contribution |
 | US-19 | Saya ingin melihat Portfolio tracker | List project dengan status shipped/in_progress, tools, impact, case study |
 | US-20 | Saya ingin melihat Skills gap terhadap Data Analyst | Skill level vs target per skill yang relatedToRole |
 
@@ -103,26 +102,25 @@ Rafli membutuhkan satu tempat terpadu untuk:
 | US-33 | Saya ingin melihat skill detail drawer | Level ±, target, learning plan, resource URL, relatedToRole toggle |
 | US-34 | Saya ingin rekomendasi action berikutnya | Banner rekomendasi: "Perdalam SQL joins, lalu jadikan portfolio" |
 
-### 4.6 Reflection (Ruang Berbenah)
-| ID | User Story | AC |
-|---|---|---|
-| US-35 | Saya ingin menulis refleksi Quick (2 menit) | Form: mood word, kondisi, baik, berat, pelajaran, langkah kecil |
-| US-36 | Saya ingin menulis Deep Reflection dengan template | 5 template: Career, Finance, Growth, Decision, Gratitude |
-| US-37 | Saya ingin menambahkan improvement actions ke refleksi | 1–3 aksi kecil per refleksi |
-| US-38 | Saya ingin mengubah improvement action jadi commitment | Tombol "Jadikan commitment" → buat commitment baru |
-| US-39 | Saya ingin melihat timeline refleksi | List kronologis dengan filter per template |
-| US-40 | Saya ingin melihat pattern insights dari refleksi | Word frequency, top goal/skill, wins count, pending actions |
-| US-41 | Saya ingin mencatat Wins & Gratitude | Tab terpisah untuk catat kemenangan kecil dan rasa syukur |
-| US-42 | Saya ingin menulis Surat untuk Diri yang akan datang | Letter sealed sampai tanggal tertentu (default 90 hari) |
-| US-43 | Saya ingin draft refleksi auto-saved ke localStorage | Autosave indicator: menyimpan/tersimpan/gagal |
+### 4.6 Life Compass (`/compass` — merged Reflection + Weekly Review, 2026-07-18)
 
-### 4.7 Weekly Review
+Lima tab: **Ritual Mingguan** (default), Berbenah, Timeline, Wins & Gratitude, Surat untuk Diri. Filosofi Past (recognition) / Present (grounding) / Future (trajectory). Detail arsitektur & keputusan desain: `docs/features/life-compass.md`.
+
 | ID | User Story | AC |
 |---|---|---|
-| US-44 | Saya ingin melihat ringkasan otomatis minggu ini | Commitment stats, cashflow, skill stagnation alert |
-| US-45 | Saya ingin mengisi form refleksi 4 pertanyaan | Highlights, blockers, finance, career progress |
-| US-46 | Saya ingin menetapkan 1–3 fokus minggu depan | Input fields + disimpan ke review |
-| US-47 | Saya ingin melihat histori review mingguan | List kronologis dengan highlights dan next-week focus chips |
+| US-35 | Saya ingin ritual mingguan dengan draft narasi otomatis yang bisa saya edit | "Hero's Journey" — paragraf rule-based (bukan LLM) dari wins/refleksi/commitment minggu ini, mengisi field highlights, sepenuhnya editable |
+| US-36 | Saya ingin mencatat kondisi saat ini tanpa harus menulis panjang | Mood word (10 pilihan), energi (1–5), stres (1–5) |
+| US-37 | Saya ingin tahu apakah saya sedang momentum atau berisiko burnout | Indikator dari tren energi/stres 2–3 ritual terakhir + jumlah commitment aktif; jujur menampilkan "belum cukup data" jika riwayat kurang |
+| US-38 | Saya ingin melihat bagaimana refleksi kecil terhubung ke goal besar | "Efek kupu-kupu" — goal yang paling sering direfleksikan ditautkan ke progress live-nya |
+| US-39 | Saya ingin mencatat blocker, refleksi keuangan, progres karier, dan fokus minggu depan | 3 textarea + 1–3 input fokus, tersimpan ke histori ritual kronologis |
+| US-40 | Saya ingin menulis refleksi Quick (2 menit) | Form: mood word, kondisi, baik, berat, pelajaran, langkah kecil |
+| US-41 | Saya ingin menulis Deep Reflection dengan template | 5 template: Career, Finance, Growth, Decision, Gratitude |
+| US-42 | Saya ingin menambahkan improvement actions ke refleksi dan mengubahnya jadi commitment | 1–3 aksi kecil per refleksi, tombol "Jadikan commitment" |
+| US-43 | Saya ingin melihat timeline refleksi dengan pattern insights | Filter per template; word frequency, top goal/skill, wins count, pending actions |
+| US-44 | Saya ingin mencatat Wins & Gratitude | Tab terpisah untuk catat kemenangan kecil dan rasa syukur |
+| US-45 | Saya ingin menulis Surat untuk Diri yang akan datang | Letter sealed sampai tanggal tertentu (default 90 hari) |
+| US-46 | Saya ingin draft refleksi auto-saved ke localStorage | Autosave indicator: menyimpan/tersimpan/gagal |
+| US-47 | Saya ingin refleksi & ritual mingguan saya tetap privat terhadap Asisten AI | Hanya data agregat (`reflectionInsights()`/`reviewInsights()`) yang boleh dikirim ke AI, tidak pernah teks mentah |
 
 ### 4.8 Cross-Module Features
 | ID | User Story | AC |
@@ -145,9 +143,8 @@ Rafli membutuhkan satu tempat terpadu untuk:
 | 3 | **Career** | `/career` | Career Milestones, Portfolio, Skills Gap |
 | 4 | **Finance** | `/finance` | Transactions, Budgets, Reminders |
 | 5 | **Skills** | `/skills` | Skills (8 seed), Practice Log |
-| 6 | **Reflection** | `/reflection` | Reflections (Quick/Deep), Wins, Letters |
-| 7 | **Weekly Review** | `/review` | Reviews, Auto Summary |
-| 8 | **AI Assistant** (MVP, Phase 3 dibangun lebih awal) | `/ai` | Chat thread (single, persisted), read-only Q&A lintas semua modul |
+| 6 | **Life Compass** (merged Reflection + Weekly Review) | `/compass` | Reflections (Quick/Deep), Wins, Letters, Reviews (Ritual Mingguan) |
+| 7 | **AI Assistant** (MVP, Phase 3 dibangun lebih awal) | `/ai` | Chat thread (single, persisted), read-only Q&A lintas semua modul |
 
 ---
 
@@ -188,7 +185,7 @@ Rafli membutuhkan satu tempat terpadu untuk:
 | Data | Jumlah | Contoh |
 |---|---|---|
 | Goals | 15 | "Terjun ke Data Analyst", "Tabungan bertahap Rp10jt→100jt" |
-| Career Milestones | 8 | SMA, Google Certificate, Portfolio projects, Target role |
+| Career Milestones | 13 | Data nyata dari resume: 6 pengalaman kerja (PT PLN → ... → PT. Pipamas Primasejati), 2 pendidikan, 5 sertifikasi |
 | Portfolio | 2 | Retail Sales Dashboard, Personal Cashflow Analytics |
 | Skills | 8 | SQL & Querying, Data Analysis, Python, Business Acumen |
 | Transactions | 6 bulan | Gaji Rp2.9jt→3.25jt, expenses per kategori |
@@ -241,7 +238,7 @@ Rafli membutuhkan satu tempat terpadu untuk:
 |---|---|---|
 | **Phase 1** | ✅ Released | 7 modul, dark mode, mobile-first, seed lengkap, Command Palette, Notifications, Autosave, CSV Export |
 | **Phase 2** | ⏳ Planned | Supabase Auth aktif, sync realtime, storage bukti (certificate PDF), WhatsApp → Finance quick-add (⏸️ paused, menunggu nomor WhatsApp Business — lihat `docs/features/whatsapp-integration.md`) |
-| **Phase 3** | 🔶 Sebagian dibangun | AI assistant chat (✅ MVP dibangun lebih awal dari roadmap, via OpenRouter free-tier — lihat `docs/features/ai-assistant.md`), search global, mood/energy check-in, reading tracker, exercise tracker |
+| **Phase 3** | 🔶 Sebagian dibangun | AI assistant chat (✅ MVP dibangun lebih awal dari roadmap, via OpenRouter free-tier — lihat `docs/features/ai-assistant.md`), mood/energy check-in (✅ dibangun lebih awal sebagai bagian Life Compass Ritual Mingguan — lihat `docs/features/life-compass.md`), search global, reading tracker, exercise tracker |
 | **Phase 4** | ⏳ Planned | Import LinkedIn / GitHub API opsional |
 
 ---
@@ -255,8 +252,8 @@ Rafli membutuhkan satu tempat terpadu untuk:
 | P1 | Global search — Ctrl+K sudah nav + quick-add; belum full-text search |
 | P1 (⏸️ paused) | WhatsApp → Finance quick-add — kode & schema sudah selesai dan teruji, menunggu nomor WhatsApp Business. Detail: `docs/features/whatsapp-integration.md` |
 | ✅ Built | AI assistant chat — MVP shipped ahead of roadmap via OpenRouter (free-tier only), read-only Q&A over semua modul. Detail: `docs/features/ai-assistant.md`. Lanjutan (agents, forecasting, artifact generation, multi-conversation) masih P2 |
+| ✅ Built | Mood/energy check-in — shipped ahead of roadmap as Life Compass's Ritual Mingguan (mood word, energi/stres 1–5, Momentum vs Burnout indicator). Detail: `docs/features/life-compass.md` |
 | P2 | Import LinkedIn / GitHub CSV |
-| P2 | Mood/energy check-in (bila desain tidak medis) |
 | P2 | Reading tracker, exercise tracker |
 | P3 | Multi-user + Supabase Auth aktif |
 
@@ -266,7 +263,7 @@ Rafli membutuhkan satu tempat terpadu untuk:
 
 | Metric | Target |
 |---|---|
-| Rafli mengisi Weekly Review | ≥ 3x per bulan |
+| Rafli mengisi Ritual Mingguan (Life Compass) | ≥ 3x per bulan |
 | Transaksi finance tercatat | ≥ 80% dari pengeluaran nyata |
 | Skill practice session | ≥ 4x per minggu |
 | Refleksi disimpan | ≥ 2x per minggu |
@@ -274,4 +271,4 @@ Rafli membutuhkan satu tempat terpadu untuk:
 
 ---
 
-*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026.*
+*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review) dan redesign Career Journey dual-track.*

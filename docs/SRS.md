@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| **Versi** | 1.0 |
-| **Tanggal** | 17 Juli 2026 |
+| **Versi** | 1.1 |
+| **Tanggal** | 18 Juli 2026 |
 | **Status** | Phase 1 — Production |
 
 ---
@@ -16,7 +16,7 @@
 Dokumen ini mendefinisikan spesifikasi kebutuhan perangkat lunak secara lengkap untuk **Rafli Life Tracker** — sebuah personal life operating system berbasis web.
 
 ### 1.2 Ruang Lingkup
-Sistem mencakup 7 modul utama: Dashboard, Goals, Career, Finance, Skills, Reflection, dan Weekly Review. Saat ini berjalan sebagai single-user application dengan data persistence di browser localStorage, dengan arsitektur yang siap untuk multi-user via Supabase.
+Sistem mencakup 6 modul utama: Dashboard, Goals, Career, Finance, Skills, dan Life Compass (`/compass` — merged Reflection + Weekly Review, 2026-07-18; lihat `docs/features/life-compass.md`). Saat ini berjalan sebagai single-user application dengan data persistence di browser localStorage, dengan arsitektur yang siap untuk multi-user via Supabase.
 
 ### 1.3 Referensi Dokumen
 - [PRD.md](file:///c:/PROJECT/Life%20Tracker/docs/PRD.md) — Product Requirements Document
@@ -36,16 +36,17 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 │               RAFLI LIFE TRACKER                     │
 ├──────────┬──────────┬───────────┬───────────────────┤
 │Dashboard │  Goals   │  Career   │     Finance       │
-│ ·Pulse   │ ·CRUD    │ ·Timeline │ ·Transactions     │
-│ ·Focus   │ ·Filter  │ ·Filter   │ ·Budgets          │
+│ ·Pulse   │ ·CRUD    │ ·Dual-    │ ·Transactions     │
+│ ·Focus   │ ·Filter  │  track map│ ·Budgets          │
 │ ·Insight │ ·Ladder  │ ·Portfolio│ ·Charts           │
 │ ·Commit  │ ·Detail  │ ·SkillGap │ ·Reminders        │
 ├──────────┼──────────┼───────────┼───────────────────┤
-│  Skills  │Reflection│  Review   │   Cross-Module    │
-│ ·Garden  │ ·Quick   │ ·Summary  │ ·Command Palette  │
-│ ·Practice│ ·Deep    │ ·Form     │ ·Notifications    │
-│ ·Level   │ ·Wins    │ ·History  │ ·Autosave         │
-│ ·Detail  │ ·Letters │ ·Focus    │ ·Dark Mode        │
+│  Skills  │  Life    │Cross-Module│                  │
+│ ·Garden  │  Compass │·Cmd Palette│                  │
+│ ·Practice│ ·Ritual  │·Notif      │                  │
+│ ·Level   │ ·Berbenah│·Autosave   │                  │
+│ ·Detail  │ ·Wins    │·Dark Mode  │                  │
+│          │ ·Letters │            │                  │
 └──────────┴──────────┴───────────┴───────────────────┘
 ```
 
@@ -194,24 +195,26 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 ### 3.3 Modul Career (FR-CAREER)
 
 #### FR-CAREER-01: Overview Cards
-- **Output**: 3 cards: Current trajectory (Data Analyst), Next proof (Portfolio #N), Career readiness score
+- **Output**: 3 cards: Current trajectory (title + organization of the most recent `ongoing: true` experience milestone, computed — not hardcoded), Next proof (Portfolio #N), Career readiness score
 
 #### FR-CAREER-02: Type & Range Filters
 - **Type filter**: All, Education, Certificate, Experience, Project, Skill Milestone, Target Role
 - **Range filter**: Semua, Masa lalu, Tahun ini, Masa depan
 
-#### FR-CAREER-03: Immersive Timeline
-- **Visual**: Vertical growing line (animated via Framer Motion `scaleY`)
-- **Nodes**: Color-coded per status
-  - Completed: `bg-forest-500` solid green
-  - In progress: `bg-terracotta` orange with ring glow
-  - Planned: `bg-paper` outline only
-- **Card content**: Date, type chip, status chip, title, organization, description, skill chips
-- **Animation**: Stagger reveal `whileInView` per node
+#### FR-CAREER-03: Dual-Track Career Map (redesigned 2026-07-18 — `docs/features/career-journey.md`)
+- **Layout**: Two parallel vertical lanes, split by a `track` field derived from `type` — "Jejak Profesional" (`track: "experience"`, jobs) on the left, "Milestone & Pencapaian" (`track: "milestone"`, education/certificates/other) on the right. Each lane is its own chronological connector-line + card list (`CareerTrail.jsx` → `TrailLane` → `TrailCard.jsx`).
+- **Text always visible on the card** (no click required): title, organization, location, date range + computed duration (`formatMonthRange()`/`formatDuration()`), a short description preview, up to 4 skill chips.
+- **Aesthetic differentiation**: Experience cards = solid rectangular blocks with a status-colored left border. Milestone cards = rounded badges with a soft glow ring when not `planned`.
+- **Nodes**: Connector-dot color-coded per status
+  - Completed: `#315d48` solid
+  - In progress: glow ring (`boxShadow`)
+  - Planned: dashed outline, transparent fill
+- **Animation**: Fade/slide-in on mount via Framer Motion `AnimatePresence`, respects `reducedMotion`.
 
 #### FR-CAREER-04: Milestone Detail Drawer
-- **Editable fields**: Month (dropdown), Year, Organization, Description, Skills (comma-separated), Evidence URL, Status (dropdown), Contribution (0–30%)
+- **Editable fields**: Month/Year mulai, "Masih berlangsung" checkbox (shows "Sekarang" on the card, hides end-date fields), Month/Year selesai (when not ongoing), Organization, Location, Description singkat (card preview), Detail/highlight (multi-line textarea, one bullet per line → `highlights: string[]`), Skills (comma-separated), Evidence URL, Status (dropdown), Contribution (0–30%)
 - **Actions**: Update (autosave), Delete
+- **Not editable in-drawer**: `track` — fixed at creation, auto-derived from `type` (`experience` → `"experience"`, else `"milestone"`)
 
 #### FR-CAREER-05: Portfolio Tracker
 - **Output**: Grid of portfolio project cards
@@ -298,13 +301,24 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 
 ---
 
-### 3.6 Modul Reflection (FR-REFLECT)
+### 3.6 Modul Life Compass (FR-COMPASS)
 
-#### FR-REFLECT-01: Tab Navigation
-- **4 tabs**: Berbenah (compose), Timeline, Wins & Gratitude, Surat untuk Diri
+Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflection.md` → `docs/features/life-compass.md`). Route `/compass`; `/reflection` and `/review` client-redirect here. Data model kept as two separate arrays (`reflections`, `reviews`) — the merge is at the module/nav/UI level, not the record level.
+
+#### FR-COMPASS-01: Tab Navigation
+- **5 tabs**: Ritual Mingguan (default), Berbenah (compose), Timeline, Wins & Gratitude, Surat untuk Diri
 - **Transition**: AnimatePresence with fade + slide
 
-#### FR-REFLECT-02: Quick Reflection Form
+#### FR-COMPASS-02: Ritual Mingguan (weekly ritual — replaces old Weekly Review form)
+- **Present (grounding)**: Mood picker (10 words, shared `MoodPicker` component), Energi (1–5), Stres (1–5)
+- **Past (recognition)**: Editable "Hero's Journey" draft — `weeklyNarrativeDraft()` composes a rule-based (not LLM) opening paragraph from this week's wins/reflections/commitments counts and the most-reflected-on goal, pre-filling the `highlights` textarea
+- **Momentum vs Burnout indicator**: `momentumIndex(reviews, commitments)` — reads the last 2–3 rituals' energy/stress trend + current open-commitment count; returns `"unknown"` (not enough data yet) until ≥2 rituals have energy/stress filled in, else `"momentum"` / `"balanced"` / `"burnout-risk"`
+- **Butterfly Effect card**: Shows the goal most linked across recent reflections (`reflectionInsights().topGoal`) alongside its live computed progress %
+- **Future (trajectory)**: Blockers, refleksi keuangan, progres karier/skill (textareas), 1–3 fokus minggu depan, linked goals/skills
+- **Privacy**: `isPrivate: true` default (previously Weekly Review had no privacy concept at all)
+- **History**: Chronological list below the form, same card as before (date, mood chip, highlights excerpt, focus chips)
+
+#### FR-COMPASS-03: Quick Reflection Form
 - **Fields**:
   - Mood picker (10 words: tenang, penasaran, bersyukur, lelah, fokus, gelisah, bersemangat, sabar, tersadar, berat)
   - Kondisi saat ini (textarea)
@@ -316,7 +330,7 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
   - Links & Tags (collapsible: tags, linked goals, linked skills)
 - **Autosave**: Draft saved to localStorage with debounce 350ms
 
-#### FR-REFLECT-03: Deep Reflection Form
+#### FR-COMPASS-04: Deep Reflection Form
 - **5 templates** with unique prompts:
   - **Career** (accent: forest green): momentum, proof, growing, slowing, minimum
   - **Finance** (accent: terracotta): pattern, proud, conscious, feeling, boundary
@@ -325,22 +339,22 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
   - **Gratitude** (accent: olive): three, people, moment, body, taken_for_granted
 - **Additional**: Mood picker, improvement actions, links & tags (same as quick)
 
-#### FR-REFLECT-04: Timeline
+#### FR-COMPASS-05: Timeline
 - **Filter**: All, Quick, Career, Finance, Growth, Decision, Gratitude
 - **Card**: Template chip, mood chip, date, excerpt (line-clamp-2), action status chips
 - **Click**: Open detail drawer
 
-#### FR-REFLECT-05: Reflection Detail Drawer
+#### FR-COMPASS-06: Reflection Detail Drawer
 - **Read-only display**: All fields from reflection
 - **Improvement actions**: List with "Jadikan commitment" button for unconverted actions
 - **Links**: Tags, linked goals, linked skills
 - **Delete**: "Hapus refleksi" link
 
-#### FR-REFLECT-06: Convert Action to Commitment
+#### FR-COMPASS-07: Convert Action to Commitment
 - **Action**: `convertActionToCommitment(reflectionId, actionId)`
 - **Effect**: Create new commitment, mark action as converted with `convertedToCommitmentId`
 
-#### FR-REFLECT-07: Pattern Insights
+#### FR-COMPASS-08: Pattern Insights
 - **Computation**: `reflectionInsights(reflections, wins, goals, skills)`
 - **Output**:
   - Consistency: "X kali berhenti sejenak bulan ini"
@@ -349,39 +363,23 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
   - Wins glow: "X kemenangan kecil bulan ini"
   - Pending actions: Count of unconverted improvement actions
 
-#### FR-REFLECT-08: Wins & Gratitude
+#### FR-COMPASS-09: Wins & Gratitude
 - **Create**: Kind (win/gratitude) + text
 - **Display**: Chronological list with kind chip and date
 - **Delete**: Per item
 
-#### FR-REFLECT-09: Letter to Future Self
+#### FR-COMPASS-10: Letter to Future Self
 - **Create**: Title, body (textarea), sealed until date (default today + 90 days)
 - **Display**: Sealed status with countdown or "Buka surat" button when date passed
 - **Open**: Set `opened: true` + `openedAt` timestamp
 
----
-
-### 3.7 Modul Weekly Review (FR-REVIEW)
-
-#### FR-REVIEW-01: Auto Summary
-- **Computed lines**:
-  - Commitment stats: "X commitment selesai, Y masih aktif"
-  - Finance snapshot: "income, expense, net" (IDR short)
-  - Skill stagnation: Skill paling lama tidak dilatih + hari
-- **Visual**: Bullet list in bordered card
-
-#### FR-REVIEW-02: Review Form
-- **4 textareas**: Highlights, Blockers, Finance reflection, Career/skill progress
-- **3 focus inputs**: 1–3 fokus minggu depan
-- **Submit**: `addReview()` → save + reset form + success indicator
-
-#### FR-REVIEW-03: Review History
-- **Display**: List of past reviews with date, highlight excerpt, next-week focus chips
-- **Ordering**: Newest first
+#### FR-COMPASS-11: AI Privacy Boundary
+- **Rule**: Raw reflection/letter/ritual body text never assembled into outbound AI context — only `reflectionInsights()`/`reviewInsights()` aggregated output
+- **Verification**: Network-layer test (see `docs/features/ai-assistant.md`), not just code review
 
 ---
 
-### 3.8 Cross-Module Features (FR-CROSS)
+### 3.7 Cross-Module Features (FR-CROSS)
 
 #### FR-CROSS-01: Command Palette
 - **Trigger**: `Ctrl/Cmd + K` atau klik tombol sidebar
@@ -513,14 +511,20 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 | userId | string | ✅ | Owner |
 | title | string | ✅ | Milestone title |
 | type | string | ✅ | education / certificate / experience / project / skill / target |
-| month | number | | 1–12 |
-| year | number | | e.g., 2026 |
+| track | string | ✅ | `"experience"` / `"milestone"` — dual-track map lane. Auto-derived from `type` on create (`experience` → `"experience"`, else `"milestone"`) unless explicitly set |
+| month | number | | 1–12, start month |
+| year | number | | e.g., 2026, start year |
+| endMonth | number \| null | | 1–12, end month. `null` = single point-in-time (certs/education) |
+| endYear | number \| null | | End year. `null` = single point-in-time |
+| ongoing | boolean | | `true` → renders "Sekarang"/"Present", end date fields ignored |
 | organization | string | | Issuer / employer |
-| description | string | | Details |
+| location | string | | e.g., "Bandung" — optional |
+| description | string | | Short one-line summary, shown as the card preview |
+| highlights | string[] | | Full bullet-point achievements, shown in the detail drawer only |
 | skills | string[] | | Related skill names |
 | evidenceUrl | string | | Proof link |
 | status | string | | planned / in_progress / completed |
-| contribution | number | | 0–30, % contribution to career goal |
+| contribution | number | | 0–30 — cosmetic connector-dot sizing weight only (`contributionToSize()` in `trailLayout.js`); **not** an input to `careerReadiness()` |
 
 ### 5.4 Portfolio Project
 | Field | Type | Required | Description |
@@ -595,7 +599,7 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 | done | boolean | ✅ | Completion status |
 | priority | string | | low / medium / high |
 
-### 5.10 Reflection
+### 5.10 Reflection (Life Compass — Berbenah/Timeline)
 | Field | Type | Required | Description |
 |---|---|---|---|
 | id | string | ✅ | Primary key |
@@ -615,17 +619,21 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 | improvementActions | array | | [{id, text, convertedToCommitmentId}] |
 | isPrivate | boolean | | Default: true |
 
-### 5.11 Weekly Review
+### 5.11 Weekly Review (Life Compass — Ritual Mingguan)
 | Field | Type | Required | Description |
 |---|---|---|---|
 | id | string | ✅ | Primary key |
 | userId | string | ✅ | Owner |
 | weekOf | string | ✅ | ISO date (Monday of the week) |
-| highlights | string | | What went well |
-| blockers | string | | What blocked progress |
-| finance | string | | Finance reflection |
-| careerProgress | string | | Career/skill update |
-| nextWeekFocus | string[] | | 1–3 focus items |
+| moodWord | string | | One-word mood (Present) |
+| energyLevel | number \| null | | 1–5 (Present) |
+| stressLevel | number \| null | | 1–5 (Present) |
+| highlights | string | | Editable "Hero's Journey" draft — What went well (Past) |
+| blockers | string | | What blocked progress (Future) |
+| finance | string | | Finance reflection (Future) |
+| careerProgress | string | | Career/skill update (Future) |
+| nextWeekFocus | string[] | | 1–3 focus items (Future) |
+| isPrivate | boolean | | Default: true (added 2026-07-18 — previously absent, see FR-COMPASS-11) |
 
 ### 5.12 Notification
 | Field | Type | Required | Description |
@@ -667,6 +675,7 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - `type`: must be one of CAREER_TYPES keys
 - `month`: 1–12
 - `year`: 2000–2100
+- `endMonth`/`endYear`: 1–12 / 2000–2100 when set; ignored when `ongoing: true`
 - `contribution`: 0–30
 
 ### 6.4 Skill
@@ -687,15 +696,15 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 |---|---|---|---|
 | FR-DASH-02 | Today's Focus card | toggleCommitment | page.js (root) |
 | FR-GOAL-06 | Quick Add Modal | addGoal | goals/page.js |
-| FR-CAREER-03 | Timeline + nodes | - | career/page.js |
+| FR-CAREER-03 | CareerTrail (dual-track) + TrailCard | - | career/page.js |
 | FR-FIN-07 | Transaction list | addTransaction, removeTransaction | finance/page.js |
 | FR-SKILL-03 | Catat sesi button | practiceSkill | skills/page.js |
-| FR-REFLECT-02 | Quick form | addReflection | reflection/page.js |
-| FR-REVIEW-02 | Review form | addReview | review/page.js |
+| FR-COMPASS-02 | WeeklyRitual | addReview | compass/page.js |
+| FR-COMPASS-03 | Quick form | addReflection | compass/page.js |
 | FR-CROSS-01 | CommandPalette | openPalette, closePalette | components/CommandPalette.jsx |
 | FR-CROSS-02 | QuickAddModal | (per type) | components/QuickAddModal.jsx |
 | FR-CROSS-03 | NotificationsDrawer | markNotificationRead, clearNotifications | components/NotificationsDrawer.jsx |
 
 ---
 
-*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026.*
+*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04).*

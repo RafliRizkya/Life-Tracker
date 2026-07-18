@@ -184,10 +184,9 @@ Test realistic user flows.
 - Career
 - Finance
 - Skills
-- Reflection
-- Weekly Review
+- Life Compass (`/compass` — merged Reflection + Weekly Review; see `docs/features/life-compass.md`)
 
-Do not change navigation structure.
+Do not change navigation structure without explicit approval. (Reflection and Weekly Review were merged into Life Compass on 2026-07-18 with explicit sign-off — `/reflection` and `/review` now redirect to `/compass`. Treat the module list above as current; don't merge/split further without asking again.)
 
 ---
 
@@ -241,13 +240,13 @@ Supabase.
 
 ## AI
 
-Dashboard/rule-based insights (unchanged): rule-based only, via `buildInsights()` and the other pure selectors in `insights.js`. Never replace these with LLM calls.
+Dashboard/rule-based insights (unchanged): rule-based only, via `buildInsights()` and the other pure selectors in `insights.js` — this includes Life Compass's Momentum vs Burnout indicator (`momentumIndex()`) and the "Hero's Journey" weekly narrative draft (`weeklyNarrativeDraft()`). Never replace these with LLM calls.
 
-**Chat assistant (built, ahead of the original roadmap):** `/ai` — a free-tier-only OpenRouter streaming Q&A assistant over Finance/Goals/Career/Skills/Reflection/Weekly Review data. Read-only, no write capability. Full status, architecture, and privacy verification: `docs/features/ai-assistant.md`.
+**Chat assistant (built, ahead of the original roadmap):** `/ai` — a free-tier-only OpenRouter streaming Q&A assistant over Finance/Goals/Career/Skills/Life Compass data. Read-only, no write capability. Full status, architecture, and privacy verification: `docs/features/ai-assistant.md`.
 
 - Never call a paid OpenRouter model — free-tier only, no exceptions.
 - `frontend/src/lib/ai/openrouter.js` and the OpenRouter/model env vars are server-only — never import into a `"use client"` file, never expose to the browser.
-- Raw reflection/letter body text must never be assembled into outbound LLM context, regardless of intent — only aggregated `reflectionInsights()` output. This is verified at the network layer, not just by code review — see the doc above before changing `contextBuilder.js`.
+- Raw reflection/letter/weekly-review body text must never be assembled into outbound LLM context, regardless of intent — only aggregated `reflectionInsights()`/`reviewInsights()` output. This is verified at the network layer, not just by code review — see the doc above before changing `contextBuilder.js`.
 
 ---
 
