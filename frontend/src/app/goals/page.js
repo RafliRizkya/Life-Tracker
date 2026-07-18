@@ -8,7 +8,7 @@ import {
   Plus, ArrowUpRight, Archive, Target, ChevronRight, X, CheckCircle2,
 } from "lucide-react";
 import { LIFE_AREAS } from "@/lib/seed";
-import { computeGoalProgress, careerReadiness, savingsProgress } from "@/lib/insights";
+import { computeGoalProgress, careerReadiness, savingsProgress, goalEvidenceStatus } from "@/lib/insights";
 import { formatIDR, formatDateID } from "@/lib/format";
 import clsx from "clsx";
 
@@ -31,7 +31,11 @@ export default function GoalsPage() {
 
   const active = filtered.filter((g) => g.status !== "completed");
   const completed = filtered.filter((g) => g.status === "completed").length;
-  const onTrack = active.filter((g) => computeGoalProgress(g, ctx) >= 40).length;
+  const evidenceOf = (g) => goalEvidenceStatus(g, { skills, careerMilestones, transactions });
+  // "On track" needs both progress and recent evidence — an unproven goal can't claim it.
+  const onTrack = active.filter(
+    (g) => computeGoalProgress(g, ctx) >= 40 && evidenceOf(g).state !== "unproven"
+  ).length;
 
   return (
     <div className="max-w-6xl mx-auto px-5 md:px-8 pt-10 pb-24">
@@ -86,6 +90,7 @@ export default function GoalsPage() {
         {filtered.map((g, i) => {
           const pct = computeGoalProgress(g, ctx);
           const area = LIFE_AREAS.find((a) => a.key === g.area);
+          const evidence = evidenceOf(g);
           return (
             <motion.button
               key={g.id}
@@ -100,7 +105,14 @@ export default function GoalsPage() {
                 <span className="eyebrow" style={{ color: area?.color }}>
                   {area?.label || g.area}
                 </span>
-                {g.priority === "high" && <span className="chip-warm chip">High</span>}
+                <span className="flex items-center gap-1.5">
+                  {evidence.state === "unproven" && (
+                    <span className="chip-muted chip" data-testid={`unproven-${g.id}`} title="Tidak ada aktivitas terkait di area ini dalam 14 hari terakhir">
+                      belum ada bukti
+                    </span>
+                  )}
+                  {g.priority === "high" && <span className="chip-warm chip">High</span>}
+                </span>
               </div>
               <div className="h-display text-[19px] mt-3 leading-tight">{g.title}</div>
               {g.metric && (

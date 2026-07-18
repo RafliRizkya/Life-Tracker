@@ -194,11 +194,11 @@ export default function FinancePage() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="font-mono text-[13px]">{formatIDR(b.spent)}</span>
+                <div className="mt-2.5 flex items-baseline gap-1.5">
+                  <span className="font-mono text-[15px] font-medium tabular-nums">{formatIDR(b.spent)}</span>
                   <span className="text-[11px] text-ink-muted">/ {formatIDR(b.limit)}</span>
                 </div>
-                <Progress value={pct} tone={over ? "terra" : "forest"} className="mt-2" />
+                <Progress value={pct} tone={over ? "terra" : "forest"} className="mt-2.5" />
                 {over && (
                   <div className="mt-2 text-[11.5px] text-terracotta inline-flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" /> Over budget {formatIDRShort(b.spent - b.limit)}
@@ -275,10 +275,10 @@ export default function FinancePage() {
                     {r.amount ? formatIDR(r.amount) : "Ikuti nominal masukan"} · setiap tanggal {r.dueDay} · {r.cadence}
                   </div>
                 </div>
-                <button onClick={() => toggleReminder(r.id)} className="p-1.5 rounded-md hover:bg-line/50" aria-label="Toggle">
+                <button onClick={() => toggleReminder(r.id)} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50" aria-label="Toggle">
                   {r.active ? <Power className="h-3.5 w-3.5 text-forest-500" /> : <PowerOff className="h-3.5 w-3.5 text-ink-muted" />}
                 </button>
-                <button onClick={() => removeReminder(r.id)} className="p-1.5 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta">
+                <button onClick={() => removeReminder(r.id)} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta" aria-label="Hapus">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </li>
@@ -295,25 +295,22 @@ export default function FinancePage() {
           </div>
           <ul className="divide-y divide-line dark:divide-night-border border-y border-line dark:border-night-border max-h-[520px] overflow-y-auto scrollbar-thin">
             {transactions.slice(0, 60).map((t) => (
-              <li key={t.id} className="flex items-center gap-3 py-3" data-testid={`tx-${t.id}`}>
-                <span className={clsx(
-                  "grid place-items-center h-8 w-8 rounded-full text-[11px] font-mono",
-                  t.type === "income" ? "bg-forest-500/12 text-forest-500" : "bg-terracotta/15 text-terracotta"
-                )}>
-                  {t.type === "income" ? "↓" : "↗"}
-                </span>
+              <li key={t.id} className="flex items-center gap-4 py-3.5" data-testid={`tx-${t.id}`}>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium truncate">{t.title}</div>
-                  <div className="text-[10.5px] text-ink-muted">
+                  <div className="text-[13px] truncate">{t.title}</div>
+                  <div className="text-[10.5px] text-ink-muted mt-0.5">
                     {CATEGORY_LABELS[t.category] || t.category} · {formatDateID(t.date)}
                   </div>
                 </div>
-                <div className={clsx("font-mono text-[12px] whitespace-nowrap", t.type === "income" ? "text-forest-500 dark:text-lime" : "text-ink")}>
+                <div className={clsx(
+                  "font-mono text-[13.5px] font-medium whitespace-nowrap tabular-nums",
+                  t.type === "income" ? "text-forest-500 dark:text-lime" : "text-ink"
+                )}>
                   {t.type === "income" ? "+" : "−"} {formatIDR(t.amount)}
                 </div>
                 <button
                   onClick={() => removeTransaction(t.id)}
-                  className="p-1.5 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta"
+                  className="grid place-items-center h-11 w-11 -my-1.5 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta"
                   aria-label="Hapus"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -329,16 +326,16 @@ export default function FinancePage() {
 
 function Scorecard({ label, value, hint, tone }) {
   return (
-    <div className="rounded-xl border border-line dark:border-night-border p-4 bg-card dark:bg-night-card">
+    <div className="rounded-xl border border-line dark:border-night-border p-5 bg-card dark:bg-night-card">
       <div className="eyebrow">{label}</div>
       <div className={clsx(
-        "h-display text-[22px] mt-1",
+        "h-display text-[24px] mt-1.5 tabular-nums",
         tone === "forest" && "text-forest-500 dark:text-lime",
         tone === "lime" && "text-forest-500 dark:text-lime",
       )}>
         {value}
       </div>
-      <div className="text-[10.5px] text-ink-muted mt-1">{hint}</div>
+      <div className="text-[10.5px] text-ink-muted mt-1.5">{hint}</div>
     </div>
   );
 }

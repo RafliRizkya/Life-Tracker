@@ -5,23 +5,38 @@ import { formatMonthRange, formatDuration } from "@/lib/format";
 import { TYPE_ICON, STATUS_META } from "./constants";
 import clsx from "clsx";
 
-export default function TrailCard({ milestone: m, variant, reducedMotion, onSelect }) {
+export default function TrailCard({ milestone: m, variant, isNew, isSelected, reducedMotion, onSelect }) {
   const meta = STATUS_META[m.status] || STATUS_META.planned;
   const Icon = TYPE_ICON[m.type] || TYPE_ICON.project;
   const isGhost = m.status === "planned";
   const dateRange = formatMonthRange(m.month, m.year, m.endMonth, m.endYear, m.ongoing);
   const duration = formatDuration(m.month, m.year, m.endMonth, m.endYear, m.ongoing);
 
+  // State-tied motion only: freshly-added milestones animate in ("the app
+  // responded"); everything else — including the initial page load — lands still.
+  const animateEntrance = isNew && !reducedMotion;
+
+  const baseShadow =
+    variant === "milestone" && m.status !== "planned"
+      ? `0 0 0 1px ${meta.color}30, 0 0 16px ${meta.color}20`
+      : "";
+  const selectedShadow = isSelected ? `0 0 0 2px ${meta.color}55` : "";
+  const boxShadow = [selectedShadow, baseShadow].filter(Boolean).join(", ") || undefined;
+
   return (
     <motion.li
       layout={!reducedMotion}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, transition: { duration: 0.2 } }}
-      transition={{ duration: reducedMotion ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
+      initial={animateEntrance ? { opacity: 0, scale: 0.96, y: 8 } : false}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : 0.2 } }}
+      transition={{ type: "spring", stiffness: 300, damping: 26 }}
       className="relative pl-6 -ml-px list-none"
     >
-      <span
+      {/* connector dot — "lands" on the line when the milestone is new */}
+      <motion.span
+        initial={animateEntrance ? { scale: 0 } : false}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 400, damping: 18, delay: animateEntrance ? 0.1 : 0 }}
         className="absolute -left-[7px] top-2 rounded-full border-2"
         style={{
           width: 12,
@@ -33,6 +48,16 @@ export default function TrailCard({ milestone: m, variant, reducedMotion, onSele
         }}
         aria-hidden
       />
+      {animateEntrance && (
+        <motion.span
+          initial={{ scale: 0.6, opacity: 0.5 }}
+          animate={{ scale: 2.6, opacity: 0 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+          className="absolute -left-[7px] top-2 rounded-full pointer-events-none"
+          style={{ width: 12, height: 12, background: meta.color }}
+          aria-hidden
+        />
+      )}
       <motion.button
         type="button"
         onClick={() => onSelect(m)}
@@ -48,10 +73,7 @@ export default function TrailCard({ milestone: m, variant, reducedMotion, onSele
         style={{
           borderColor: variant === "experience" ? meta.color : undefined,
           borderLeftColor: variant === "experience" ? meta.color : undefined,
-          boxShadow:
-            variant === "milestone" && m.status !== "planned"
-              ? `0 0 0 1px ${meta.color}30, 0 0 16px ${meta.color}20`
-              : undefined,
+          boxShadow,
           borderStyle: variant === "milestone" && isGhost ? "dashed" : "solid",
           borderWidth: variant === "milestone" ? 1 : undefined,
         }}

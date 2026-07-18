@@ -1,6 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
+import { motion, useReducedMotion } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -27,6 +28,7 @@ const PAGES = [
   { href: "/skills", label: "Skills", icon: Sparkles, keywords: "belajar sql python data" },
   { href: "/compass", label: "Life Compass", icon: Compass, keywords: "refleksi mingguan reflection weekly review ritual" },
   { href: "/ai", label: "Asisten AI", icon: Bot, keywords: "chat tanya assistant ai" },
+  { href: "/guide", label: "Guideline", icon: BookOpen, keywords: "panduan tutorial cara pakai bantuan help" },
 ];
 
 export default function CommandPalette() {
@@ -35,6 +37,9 @@ export default function CommandPalette() {
   const openQuickAdd = useLifeStore((s) => s.openQuickAdd);
   const setTheme = useLifeStore((s) => s.setTheme);
   const theme = useLifeStore((s) => s.settings.theme);
+  const storeReducedMotion = useLifeStore((s) => s.settings.reducedMotion);
+  const osReducedMotion = useReducedMotion();
+  const reducedMotion = storeReducedMotion || osReducedMotion;
   const router = useRouter();
 
   // Close on route change externally
@@ -54,8 +59,11 @@ export default function CommandPalette() {
       className="fixed inset-0 z-50 grid place-items-start pt-[10vh] bg-ink/40 dark:bg-black/60 backdrop-blur-sm"
       onClick={close}
     >
-      <div
-        className="w-[min(560px,calc(100%-2rem))] mx-auto surface shadow-pop overflow-hidden"
+      <motion.div
+        initial={reducedMotion ? false : { opacity: 0, scale: 0.98, y: -6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
+        className="w-[min(560px,calc(100%-2rem))] mx-auto surface-glass overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <Command label="Command palette" className="[&_[cmdk-input]]:outline-none">
@@ -81,7 +89,7 @@ export default function CommandPalette() {
                     router.push(p.href);
                     close();
                   }}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer text-[13px] aria-selected:bg-forest-500/10 aria-selected:text-forest-500 dark:aria-selected:text-lime"
+                  className="flex items-center gap-3 px-3 py-2 min-h-[44px] rounded-md cursor-pointer text-[13px] transition-colors duration-100 aria-selected:bg-forest-500/10 aria-selected:text-forest-500 dark:aria-selected:text-lime"
                 >
                   <p.icon className="h-4 w-4" />
                   <span>Buka {p.label}</span>
@@ -110,7 +118,7 @@ export default function CommandPalette() {
             </Command.Group>
           </Command.List>
         </Command>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -120,7 +128,7 @@ function PaletteAction({ icon: Icon, label, onSelect }) {
     <Command.Item
       value={label}
       onSelect={onSelect}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer text-[13px] aria-selected:bg-forest-500/10 aria-selected:text-forest-500 dark:aria-selected:text-lime"
+      className="flex items-center gap-3 px-3 py-2 min-h-[44px] rounded-md cursor-pointer text-[13px] transition-colors duration-100 aria-selected:bg-forest-500/10 aria-selected:text-forest-500 dark:aria-selected:text-lime"
     >
       <Icon className="h-4 w-4" />
       <span>{label}</span>

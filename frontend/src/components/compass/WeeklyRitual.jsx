@@ -8,12 +8,13 @@ import {
   momentumIndex,
   weeklyNarrativeDraft,
   reflectionInsights,
+  unresolvedFocusItems,
   computeGoalProgress,
   careerReadiness,
   savingsProgress,
 } from "@/lib/insights";
 import { formatDateID } from "@/lib/format";
-import { Sparkles, BatteryMedium, Flame, ChevronRight, ArrowUpRight } from "lucide-react";
+import { Sparkles, BatteryMedium, Flame, ChevronRight, ArrowUpRight, Check, CornerDownRight, X } from "lucide-react";
 import clsx from "clsx";
 
 function currentWeekLabel() {
@@ -48,8 +49,10 @@ const EMPTY_FORM = {
 export default function WeeklyRitual() {
   const {
     reviews, wins, reflections, commitments, goals, skills,
-    transactions, portfolio, careerMilestones, addReview,
+    transactions, portfolio, careerMilestones, addReview, setFocusResolution,
   } = useLifeStore();
+
+  const followUps = useMemo(() => unresolvedFocusItems(reviews), [reviews]);
 
   const momentum = useMemo(() => momentumIndex(reviews, commitments), [reviews, commitments]);
   const pattern = useMemo(
@@ -75,6 +78,14 @@ export default function WeeklyRitual() {
 
   function toggle(list, id) {
     return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+  }
+
+  const emptyFocusSlot = ["focus1", "focus2", "focus3"].find((k) => !form[k].trim()) || null;
+
+  function carryForward(item) {
+    if (!emptyFocusSlot) return;
+    setForm((f) => ({ ...f, [emptyFocusSlot]: item.text }));
+    setFocusResolution(item.reviewId, item.index, "carried");
   }
 
   function submit(e) {
@@ -116,6 +127,62 @@ export default function WeeklyRitual() {
         <p className="mt-1.5 text-[13px] text-ink-soft leading-relaxed">{momentum.body}</p>
       </div>
 
+      {followUps.length > 0 && (
+        <div
+          className="rounded-2xl border border-line dark:border-night-border bg-card dark:bg-night-card p-5"
+          data-testid="followup-card"
+        >
+          <div className="eyebrow flex items-center gap-1.5">
+            <CornerDownRight className="h-3 w-3" /> Dari ritual sebelumnya
+          </div>
+          <p className="mt-1 text-[12.5px] text-ink-muted">
+            Janji kecil yang belum ketahuan kabarnya — tandai jujur saja, tidak ada yang menghakimi.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {followUps.map((it) => (
+              <li
+                key={`${it.reviewId}-${it.index}`}
+                className="rounded-lg border border-line dark:border-night-border p-3"
+                data-testid={`followup-${it.reviewId}-${it.index}`}
+              >
+                <div className="text-[13px]">{it.text}</div>
+                <div className="text-[10.5px] text-ink-muted mt-0.5">
+                  {it.weeksAgo} minggu lalu kamu bilang mau ini — gimana kabarnya?
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFocusResolution(it.reviewId, it.index, "resolved")}
+                    className="btn-ghost text-[11.5px]"
+                    data-testid={`followup-resolve-${it.reviewId}-${it.index}`}
+                  >
+                    <Check className="h-3 w-3" /> Sudah jalan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => carryForward(it)}
+                    disabled={!emptyFocusSlot}
+                    className="btn-ghost text-[11.5px] disabled:opacity-40"
+                    title={emptyFocusSlot ? undefined : "Ketiga slot fokus minggu ini sudah terisi"}
+                    data-testid={`followup-carry-${it.reviewId}-${it.index}`}
+                  >
+                    <CornerDownRight className="h-3 w-3" /> Bawa ke minggu ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFocusResolution(it.reviewId, it.index, "dropped")}
+                    className="btn-ghost text-[11.5px] text-ink-muted"
+                    data-testid={`followup-drop-${it.reviewId}-${it.index}`}
+                  >
+                    <X className="h-3 w-3" /> Lepaskan dengan sadar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {pattern.topGoal && (
         <div className="rounded-2xl border border-line dark:border-night-border p-5 bg-card dark:bg-night-card">
           <div className="eyebrow flex items-center gap-1.5">
@@ -155,11 +222,13 @@ export default function WeeklyRitual() {
           <span className="eyebrow flex items-center gap-1.5">
             <Sparkles className="h-3 w-3" /> Cerita minggumu (draft otomatis — ubah sesukamu)
           </span>
+          {/* Composed-document register, not a form box: manuscript left rule,
+              transparent field, prose measure. Same textarea, same handlers. */}
           <textarea
             value={form.highlights}
             onChange={(e) => setForm({ ...form, highlights: e.target.value })}
-            rows={4}
-            className="input resize-none leading-relaxed font-reflect italic text-[15px]"
+            rows={5}
+            className="w-full resize-none bg-transparent border-0 border-l-2 border-line dark:border-night-border focus:border-forest-500 dark:focus:border-lime pl-4 py-1.5 font-reflect italic text-[17px] leading-[1.8] text-ink-soft placeholder:text-ink-muted focus:outline-none focus:ring-0 transition-colors"
             data-testid="ritual-highlights"
           />
         </label>

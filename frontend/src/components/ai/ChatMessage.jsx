@@ -9,11 +9,17 @@ const MODULE_LABELS = {
   goals: "Goals",
   career: "Career",
   skills: "Skills",
-  reflection: "Life Compass · Jurnal",
-  review: "Life Compass · Ritual Mingguan",
+  reflection: "Life Compass (Jurnal)",
+  review: "Life Compass (Ritual)",
 };
 
-export default function ChatMessage({ role, content, manifest }) {
+/**
+ * `ghost` = still streaming: rendered dimmed (Cursor-style suggestion register)
+ * and settles to full opacity when the response completes. Assistant bubbles use
+ * a soft surface — deliberately lighter than `card`, which elsewhere means
+ * "saved/committed content" — while the citation badge keeps full prominence.
+ */
+export default function ChatMessage({ role, content, manifest, ghost = false, reducedMotion = false }) {
   const isUser = role === "user";
   return (
     <div className={clsx("flex", isUser ? "justify-end" : "justify-start")}>
@@ -22,7 +28,9 @@ export default function ChatMessage({ role, content, manifest }) {
           "max-w-[85%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed",
           isUser
             ? "bg-forest-700 text-forest-50 dark:bg-lime dark:text-forest-800"
-            : "card"
+            : "border border-line/70 dark:border-night-border/70 bg-card/60 dark:bg-night-card/60 text-ink-soft",
+          !isUser && !reducedMotion && "transition-opacity duration-300",
+          !isUser && ghost && "opacity-75"
         )}
       >
         {isUser ? (

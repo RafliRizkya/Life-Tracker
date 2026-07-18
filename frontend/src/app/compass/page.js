@@ -590,7 +590,7 @@ function TimelineSection() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ staggerChildren: 0.05 }}
-          className="grid gap-3"
+          className="grid gap-4"
         >
           {filtered.map((r, i) => {
             const t = r.template ? REFLECTION_TEMPLATES[r.template] : null;
@@ -602,7 +602,7 @@ function TimelineSection() {
                 transition={{ delay: i * 0.05 }}
                 onClick={() => setSelected(r)}
                 data-testid={`reflection-${r.id}`}
-                className="text-left rounded-2xl border border-line dark:border-night-border p-5 bg-card dark:bg-night-card hover:shadow-pop transition-shadow"
+                className="text-left rounded-2xl border border-line dark:border-night-border p-6 bg-card dark:bg-night-card hover:shadow-pop transition-shadow"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -621,7 +621,7 @@ function TimelineSection() {
                     {formatDateID(r.createdAt.slice(0, 10))}
                   </span>
                 </div>
-                <p className="mt-3 font-reflect italic text-[15px] leading-relaxed text-ink-soft line-clamp-2">
+                <p className="mt-3.5 font-reflect italic text-[16px] leading-[1.8] text-ink-soft line-clamp-3 max-w-[62ch]">
                   {r.kind === "quick"
                     ? r.currentState || r.lesson || r.smallStep
                     : Object.values(r.answers || {}).find(Boolean) || "Belum ada isi untuk refleksi ini."}
@@ -700,7 +700,7 @@ function ReflectionDetail({ reflection, goals, skills, onClose, onRemove, onConv
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="p-5 space-y-5">
+        <div className="p-6 md:p-8 space-y-6">
           {reflection.moodWord && (
             <div>
               <div className="eyebrow mb-1">Kata untuk hari itu</div>
@@ -797,10 +797,10 @@ function ReadOnly({ label, value, serif }) {
   if (!value) return null;
   return (
     <div>
-      <div className="eyebrow mb-1">{label}</div>
+      <div className="eyebrow mb-1.5">{label}</div>
       <p className={clsx(
-        "text-[13.5px] text-ink-soft leading-relaxed whitespace-pre-wrap",
-        serif && "font-reflect italic text-[15px]"
+        "text-[14px] text-ink-soft leading-[1.8] whitespace-pre-wrap max-w-[62ch]",
+        serif && "font-reflect italic text-[16px]"
       )}>
         {value}
       </p>
@@ -1002,7 +1002,7 @@ function LettersSection() {
               <li
                 key={l.id}
                 className={clsx(
-                  "rounded-2xl border p-5",
+                  "rounded-2xl border p-6 md:p-8",
                   canOpen
                     ? "border-forest-500/40 bg-forest-500/5"
                     : "border-line dark:border-night-border bg-card dark:bg-night-card"
@@ -1031,7 +1031,7 @@ function LettersSection() {
                   </button>
                 </div>
                 {canOpen && l.opened && (
-                  <p className="mt-4 font-reflect italic text-[16px] leading-relaxed text-ink-soft whitespace-pre-wrap">
+                  <p className="mt-5 font-reflect italic text-[17px] leading-[1.9] text-ink-soft whitespace-pre-wrap max-w-[58ch]">
                     {l.body}
                   </p>
                 )}

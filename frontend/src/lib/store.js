@@ -487,6 +487,7 @@ export const useLifeStore = create((set, get) => ({
       finance: "",
       careerProgress: "",
       nextWeekFocus: [],
+      focusStatus: {}, // {index: "resolved" | "carried" | "dropped"} — follow-up tracking
       linkedGoals: [],
       linkedSkills: [],
       isPrivate: true,
@@ -495,6 +496,17 @@ export const useLifeStore = create((set, get) => ({
     };
     set({ reviews: [r, ...get().reviews] });
     get().logActivity("review", `Ritual mingguan disimpan.`);
+    get().persist();
+  },
+  /** Marks one focus item on a past ritual — lightweight toggle, the review stays otherwise immutable. */
+  setFocusResolution: (reviewId, index, status) => {
+    set({
+      reviews: get().reviews.map((r) =>
+        r.id === reviewId
+          ? { ...r, focusStatus: { ...(r.focusStatus || {}), [index]: status } }
+          : r
+      ),
+    });
     get().persist();
   },
 

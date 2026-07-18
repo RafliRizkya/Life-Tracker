@@ -37,3 +37,24 @@ Sidebar, CommandPalette, TopBar title map, and the dashboard CTA link all collap
 ## Verified
 
 Production build clean, Playwright smoke test across all 5 tabs (ritual submit + history render, compose, timeline, wins, letters), `/reflection` and `/review` redirects, mobile (390px) and dark mode.
+
+## Ritual follow-up — "nagih ke masa lalu" (added 2026-07-18, "maksa growth" trio)
+
+Source brief: `docs/prompt/ritual-followup-prompt.md`. Closes the loop on next-week focus items that previously had no consequence if ignored.
+
+**Schema verification (per the brief's required step)**: `nextWeekFocus` was confirmed to be a plain `string[]` with no resolution state anywhere. Rather than converting it to an object array (which would have broken every existing reader — history cards, seed data, `buildReview` context), an **adjacent additive map** was added: `focusStatus: {index: "resolved" | "carried" | "dropped"}` on review records, defaulting `{}` on new reviews and simply absent on old ones — fully backward compatible, old reviews' items just read as unresolved (which they honestly are; nothing is retroactively marked, the prompt asks rather than assumes).
+
+- `unresolvedFocusItems(reviews, windowWeeks = 3)` in `insights.js` — pure; items from rituals 1–3 weeks ago with no `focusStatus` entry, oldest first. The current week's own ritual never nags (weeksAgo ≥ 1 guard).
+- `setFocusResolution(reviewId, index, status)` store action — lightweight toggle; the old review stays otherwise immutable.
+- UI: a plain "Dari ritual sebelumnya" card above the Ritual Mingguan form (only when items exist) with three actions per item: **Sudah jalan** (resolved), **Bawa ke minggu ini** (fills the first empty focus slot on the new form, then marks the old item "carried"; disabled when all three slots are full), **Lepaskan dengan sadar** (dropped). Functional pass only — visual polish deferred, same pattern as Correlation Engine → Wave 1.
+- Untouched per brief: `reviewInsights()`, `momentumIndex()`, `weeklyNarrativeDraft()`, Butterfly Effect, autosave timings, and the AI context builder (`focusStatus` never enters `/ai` context — `buildReview` only sends `reviewInsights()` aggregates anyway).
+
+## Reading & composing treatment (added 2026-07-18, presentation-only)
+
+Source brief: `docs/prompt/life-compass-reading-composing.md` (Wave 3). Two registers for two interaction modes, no data/logic changes:
+
+- **Hero's Journey draft (composing, Notion-inline feel)**: the editable draft moved off the boxed `.input` class to a manuscript-style field — transparent background, 2px left rule (tone-colored on focus), Instrument Serif italic at 17px/1.8 leading. Same `<textarea>`, same handlers; nothing about save behavior changed.
+- **Timeline (reading, Mintlify rhythm)**: entry cards widened to p-6 with gap-4 separation, excerpts at 16px/1.8 leading, line-clamp-3, 62ch measure. The detail drawer reads as "the same document, zoomed in": p-6→p-8 padding, serif fields at 16px/1.8 with the same 62ch measure as the cards.
+- **Surat untuk Diri (reading, letter register)**: letter cards at p-6/p-8; opened letter bodies at 17px/1.9 leading with a 58ch measure — the slowest-reading, least dashboard-like treatment in the app, per the brief.
+- **Berbenah and Wins & Gratitude deliberately untouched** (per brief). Consistency note recorded: Berbenah's serif prompt fields (15px, boxed inputs) now sit slightly tighter than Timeline's 16px reading rhythm — visible only when switching tabs quickly, not jarring; revisit if a Berbenah-scoped brief lands.
+- Autosave verified unaffected: typed into the Berbenah quick form, draft persisted to the localStorage key on the 350ms debounce.

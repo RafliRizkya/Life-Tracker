@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { AnimatePresence } from "framer-motion";
+import { useMemo, useRef } from "react";
+import { AnimatePresence, useReducedMotion } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
 import TrailCard from "./TrailCard";
 
@@ -18,9 +18,31 @@ function byStart(a, b) {
  * Path (education/certificates/other) on the right — each its own simple
  * vertical timeline with a connector line and card, so title/date/preview
  * are always visible without a click.
+ *
+ * Motion is state-tied (Linear reference): only milestones added *during this
+ * session* animate in; the initial render lands static. The card that opened
+ * the drawer stays visibly selected while it's open.
  */
-export default function CareerTrail({ milestones, onSelect }) {
-  const reducedMotion = useLifeStore((s) => s.settings.reducedMotion);
+export default function CareerTrail({ milestones, onSelect, selectedId }) {
+  const storeReducedMotion = useLifeStore((s) => s.settings.reducedMotion);
+  const osReducedMotion = useReducedMotion();
+  const reducedMotion = storeReducedMotion || osReducedMotion;
+
+  // Milestones not present on the previous render are "new" — nothing is new
+  // on first mount, so the initial page load stays still.
+  const idsKey = milestones.map((m) => m.id).join(",");
+  const prevIdsRef = useRef(null);
+  if (prevIdsRef.current === null || prevIdsRef.current.key !== idsKey) {
+    const prevIds = prevIdsRef.current?.ids || null;
+    const newIds = new Set();
+    if (prevIds) {
+      for (const m of milestones) {
+        if (!prevIds.has(m.id)) newIds.add(m.id);
+      }
+    }
+    prevIdsRef.current = { key: idsKey, ids: new Set(milestones.map((m) => m.id)), newIds };
+  }
+  const newIds = prevIdsRef.current.newIds;
 
   const { experience, milestone } = useMemo(() => {
     const experience = [];
@@ -41,6 +63,8 @@ export default function CareerTrail({ milestones, onSelect }) {
         items={experience}
         variant="experience"
         onSelect={onSelect}
+        selectedId={selectedId}
+        newIds={newIds}
         reducedMotion={reducedMotion}
       />
       <TrailLane
@@ -49,13 +73,15 @@ export default function CareerTrail({ milestones, onSelect }) {
         items={milestone}
         variant="milestone"
         onSelect={onSelect}
+        selectedId={selectedId}
+        newIds={newIds}
         reducedMotion={reducedMotion}
       />
     </div>
   );
 }
 
-function TrailLane({ label, hint, items, variant, onSelect, reducedMotion }) {
+function TrailLane({ label, hint, items, variant, onSelect, selectedId, newIds, reducedMotion }) {
   return (
     <div>
       <div className="eyebrow">{label}</div>
@@ -73,6 +99,8 @@ function TrailLane({ label, hint, items, variant, onSelect, reducedMotion }) {
                 key={m.id}
                 milestone={m}
                 variant={variant}
+                isNew={newIds.has(m.id)}
+                isSelected={m.id === selectedId}
                 reducedMotion={reducedMotion}
                 onSelect={onSelect}
               />

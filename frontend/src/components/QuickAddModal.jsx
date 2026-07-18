@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useLifeStore } from "@/lib/store";
 import { X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { TX_CATEGORIES, LIFE_AREAS, CAREER_TYPES, SKILL_CATEGORIES } from "@/lib/seed";
 import { MONTHS_ID_LONG } from "@/lib/format";
 
@@ -53,6 +53,9 @@ export default function QuickAddModal() {
   const addSkill = useLifeStore((s) => s.addSkill);
   const addReminder = useLifeStore((s) => s.addReminder);
   const addNotification = useLifeStore((s) => s.addNotification);
+  const storeReducedMotion = useLifeStore((s) => s.settings.reducedMotion);
+  const osReducedMotion = useReducedMotion();
+  const reducedMotion = storeReducedMotion || osReducedMotion;
 
   const [type, setType] = useState(initialType);
   const [form, setForm] = useState(empty);
@@ -145,19 +148,19 @@ export default function QuickAddModal() {
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={reducedMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={reducedMotion ? { opacity: 1 } : { opacity: 0 }}
           className="fixed inset-0 z-50 grid place-items-center p-4 bg-ink/50 dark:bg-black/70 backdrop-blur-sm"
           onClick={close}
         >
           <motion.div
-            initial={{ scale: 0.96, y: 8, opacity: 0 }}
+            initial={reducedMotion ? false : { scale: 0.96, y: 8, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.96, y: 8, opacity: 0 }}
-            transition={{ type: "spring", damping: 22, stiffness: 260 }}
+            exit={reducedMotion ? undefined : { scale: 0.96, y: 8, opacity: 0 }}
+            transition={reducedMotion ? { duration: 0 } : { type: "spring", damping: 22, stiffness: 260 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-[520px] surface p-6 md:p-7 shadow-pop"
+            className="w-full max-w-[520px] surface-glass p-6 md:p-7"
             data-testid="quick-add-modal"
           >
             <div className="flex items-start justify-between mb-2">

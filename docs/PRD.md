@@ -57,7 +57,7 @@ Rafli membutuhkan satu tempat terpadu untuk:
 | US-04 | Saya ingin melihat North Star career readiness breakdown | 6 parts: skills, portfolio, experience, certificates, network, applications |
 | US-05 | Saya ingin melihat financial snapshot bulan ini | Net savings, income, expense, saving rate |
 | US-06 | Saya ingin melihat Savings Ladder progress | Visualisasi milestone Rp10jt → Rp100jt |
-| US-07 | Saya ingin melihat rule-based insights | Insights dari data: savings trend, SQL stale, portfolio progress, BPJS |
+| US-07 | Saya ingin melihat rule-based insights | Insights dari data: savings trend, SQL stale, portfolio progress, BPJS, korelasi lintas-modul (stres↔pengeluaran, energi↔goal velocity, milestone karier↔energi), plus sinyal engagement gap yang tenang bila ritual/refleksi lewat 2+ minggu — semua hanya muncul bila datanya mendukung |
 | US-08 | Saya ingin melihat commitments aktif & reminders keuangan | List commitment toggleable + finance reminders |
 
 ### 4.2 Goals
@@ -69,6 +69,7 @@ Rafli membutuhkan satu tempat terpadu untuk:
 | US-12 | Saya ingin melihat detail goal di drawer | Progress %, metric, breakdown kontribusi, milestones |
 | US-13 | Saya ingin mengarsipkan goal | Goal berpindah ke status archived, tidak tampil di list utama |
 | US-14 | Saya ingin savings ladder dengan milestone checklist | Toggle achieved per milestone (Rp10jt, 20jt, ... 100jt) |
+| US-54 | Saya ingin goal ber-area skills/career/finance jujur soal buktinya | Chip "belum ada bukti" bila tak ada aktivitas area terkait dalam 14 hari; "on track" mensyaratkan bukti; goal growth/business/baru dibuat exempt (`docs/features/goal-evidence.md`) |
 
 ### 4.3 Career
 | ID | User Story | AC |
@@ -121,6 +122,7 @@ Lima tab: **Ritual Mingguan** (default), Berbenah, Timeline, Wins & Gratitude, S
 | US-45 | Saya ingin menulis Surat untuk Diri yang akan datang | Letter sealed sampai tanggal tertentu (default 90 hari) |
 | US-46 | Saya ingin draft refleksi auto-saved ke localStorage | Autosave indicator: menyimpan/tersimpan/gagal |
 | US-47 | Saya ingin refleksi & ritual mingguan saya tetap privat terhadap Asisten AI | Hanya data agregat (`reflectionInsights()`/`reviewInsights()`) yang boleh dikirim ke AI, tidak pernah teks mentah |
+| US-55 | Saya ingin fokus minggu lalu ditagih dengan jujur saat ritual baru | Prompt "Dari ritual sebelumnya" untuk fokus 1–3 minggu terakhir yang belum di-resolve; aksi per item: sudah jalan / bawa ke minggu ini / lepaskan dengan sadar |
 
 ### 4.8 Cross-Module Features
 | ID | User Story | AC |
@@ -145,6 +147,7 @@ Lima tab: **Ritual Mingguan** (default), Berbenah, Timeline, Wins & Gratitude, S
 | 5 | **Skills** | `/skills` | Skills (8 seed), Practice Log |
 | 6 | **Life Compass** (merged Reflection + Weekly Review) | `/compass` | Reflections (Quick/Deep), Wins, Letters, Reviews (Ritual Mingguan) |
 | 7 | **AI Assistant** (MVP, Phase 3 dibangun lebih awal) | `/ai` | Chat thread (single, persisted), read-only Q&A lintas semua modul |
+| 8 | **Guideline** (2026-07-19) | `/guide` | Tutorial interaktif 8 bagian — tombol "coba langsung" memicu aksi nyata (Quick Add per tipe, Command Palette, navigasi), progress "dipahami" persisted lokal |
 
 ---
 
@@ -253,6 +256,8 @@ Lima tab: **Ritual Mingguan** (default), Berbenah, Timeline, Wins & Gratitude, S
 | P1 (⏸️ paused) | WhatsApp → Finance quick-add — kode & schema sudah selesai dan teruji, menunggu nomor WhatsApp Business. Detail: `docs/features/whatsapp-integration.md` |
 | ✅ Built | AI assistant chat — MVP shipped ahead of roadmap via OpenRouter (free-tier only), read-only Q&A over semua modul. Detail: `docs/features/ai-assistant.md`. Lanjutan (agents, forecasting, artifact generation, multi-conversation) masih P2 |
 | ✅ Built | Mood/energy check-in — shipped ahead of roadmap as Life Compass's Ritual Mingguan (mood word, energi/stres 1–5, Momentum vs Burnout indicator). Detail: `docs/features/life-compass.md` |
+| ✅ Built | Cross-Signal Correlation Engine — 3 rule-based korelasi lintas-modul di Dashboard (stres↔pengeluaran, energi↔goal velocity, milestone karier↔energi). Detail: `docs/features/correlation-engine.md`. Konsumen lanjutan (Life Score, Retrospective/Chapter View) masih brief terpisah |
+| ✅ Built | "Maksa growth" trio — engagement gap signal (Dashboard, `correlation-engine.md`), ritual follow-up "nagih ke masa lalu" (`life-compass.md`), goal evidence requirement (`goal-evidence.md`) |
 | P2 | Import LinkedIn / GitHub CSV |
 | P2 | Reading tracker, exercise tracker |
 | P3 | Multi-user + Supabase Auth aktif |

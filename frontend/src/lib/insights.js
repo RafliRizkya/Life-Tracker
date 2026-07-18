@@ -144,7 +144,7 @@ export function skillMomentum(skills) {
 
 /* ---------- Rule-based insights ---------- */
 
-export function buildInsights({ transactions, goals, skills, reminders, portfolio, milestones }) {
+export function buildInsights({ transactions, goals, skills, reminders, portfolio, milestones, reviews = [], reflections = [] }) {
   const insights = [];
   const cur = monthlyTotals(transactions);
   const now = new Date();
@@ -230,6 +230,34 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
         body: `Rp ${(bpjs.amount || 150_000).toLocaleString("id-ID")} — siapin dari sekarang biar nggak dadakan.`,
       });
     }
+  }
+
+  // Cross-signal correlations — each returns null when data can't support the claim
+  const correlations = [
+    stressSpendingCorrelation(reviews, transactions),
+    energyGoalVelocityCorrelation(reviews, goals),
+    milestoneEnergyCorrelation(milestones, reviews),
+  ];
+  for (const corr of correlations) {
+    if (!corr) continue;
+    insights.push({
+      key: `corr-${corr.type}`,
+      tone: corr.tone,
+      title: corr.headline,
+      body: "Makin rutin ritualnya, makin tajam polanya.",
+      meta: `Pola dari ${corr.weeksObserved} minggu ritual · ${corr.supportingDataPoints} titik data`,
+    });
+  }
+
+  // Honest engagement gap — calm notice, never an alert
+  const gap = engagementGapSignal(reviews, reflections);
+  if (gap) {
+    insights.push({
+      key: "engagement-gap",
+      tone: gap.tone, // "gentle-notice" → renders with the neutral card fallback, by design
+      title: gap.headline,
+      body: "Bukan kewajiban — tapi kalau mau menepi sebentar, ruangnya masih di tempat yang sama.",
+    });
   }
 
   return insights;
@@ -454,6 +482,269 @@ export function weeklyNarrativeDraft({ reviews, wins, reflections, commitments, 
   parts.push(` Catat bagaimana rasanya, lalu pilih satu fokus kecil untuk minggu depan.`);
 
   return parts.join("");
+}
+
+/* ---------- Cross-signal correlations (dashboard candidates) ---------- */
+
+const WEEK_MS = 7 * 86400000;
+
+/** One review per distinct weekOf with the given numeric field filled — newest wins (reviews are prepended). */
+function ritualWeeks(reviews, field) {
+  const seen = new Set();
+  const out = [];
+  for (const r of reviews) {
+    if (typeof r[field] !== "number" || !r.weekOf || seen.has(r.weekOf)) continue;
+    seen.add(r.weekOf);
+    out.push(r);
+  }
+  return out;
+}
+
+const inWeek = (dateString, weekStartMs) => {
+  const ts = new Date(dateString).getTime();
+  return ts >= weekStartMs && ts < weekStartMs + WEEK_MS;
+};
+
+/**
+ * Does discretionary spending move with ritual stress? Reads only stressLevel,
+ * transaction amount/category/date — never free text. Null when < 3 usable weeks
+ * or when both stress groups aren't represented (honesty over false confidence,
+ * same contract as momentumIndex).
+ */
+export function stressSpendingCorrelation(reviews, transactions) {
+  const weeks = ritualWeeks(reviews, "stressLevel")
+    .map((r) => {
+      const start = new Date(r.weekOf).getTime();
+      let spend = 0;
+      let txCount = 0;
+      for (const t of transactions) {
+        if (t.type !== "expense" || t.category === "saving") continue;
+        if (!inWeek(t.date, start)) continue;
+        spend += Number(t.amount) || 0;
+        txCount++;
+      }
+      return { stress: r.stressLevel, spend, txCount };
+    })
+    .filter((w) => w.txCount > 0);
+  if (weeks.length < 3) return null;
+
+  const high = weeks.filter((w) => w.stress >= 4);
+  const calm = weeks.filter((w) => w.stress < 4);
+  if (high.length === 0 || calm.length === 0) return null;
+
+  const avg = (list) => list.reduce((a, w) => a + w.spend, 0) / list.length;
+  const highAvg = avg(high);
+  const calmAvg = avg(calm);
+  if (calmAvg === 0) return null;
+
+  const ratio = highAvg / calmAvg;
+  if (ratio < 1.2 && ratio > 0.8) return null; // no contrast worth surfacing
+
+  const pct = Math.round(Math.abs(ratio - 1) * 100);
+  return {
+    type: "stressSpending",
+    tone: ratio >= 1.2 ? "warning" : "positive",
+    headline:
+      ratio >= 1.2
+        ? `Di minggu dengan stres tinggi, pengeluaranmu rata-rata ${pct}% lebih besar`
+        : `Saat stres tinggi, kamu justru menahan pengeluaran — ${pct}% lebih hemat`,
+    weeksObserved: weeks.length,
+    supportingDataPoints: weeks.reduce((a, w) => a + w.txCount, 0),
+  };
+}
+
+/**
+ * Do goals move faster in high-energy weeks? "Velocity" = goal milestone
+ * achievedAt events per week — the only timestamped goal-progress signal
+ * that exists (goal.progress is a scalar with no history).
+ */
+export function energyGoalVelocityCorrelation(reviews, goals) {
+  const weeks = ritualWeeks(reviews, "energyLevel");
+  if (weeks.length < 3) return null;
+
+  const achievedAts = [];
+  for (const g of goals) {
+    for (const m of g.milestones || []) {
+      if (m.achieved && m.achievedAt) achievedAts.push(m.achievedAt);
+    }
+  }
+  if (achievedAts.length === 0) return null;
+
+  const perWeek = weeks.map((r) => {
+    const start = new Date(r.weekOf).getTime();
+    return {
+      energy: r.energyLevel,
+      count: achievedAts.filter((d) => inWeek(d, start)).length,
+    };
+  });
+  if (perWeek.every((w) => w.count === 0)) return null; // achievements exist, but outside observed weeks
+
+  const high = perWeek.filter((w) => w.energy >= 4);
+  const rest = perWeek.filter((w) => w.energy < 4);
+  if (high.length === 0 || rest.length === 0) return null;
+
+  const avg = (list) => list.reduce((a, w) => a + w.count, 0) / list.length;
+  if (avg(high) <= avg(rest) * 1.5) return null;
+
+  return {
+    type: "energyGoalVelocity",
+    tone: "positive",
+    headline: "Goal milestone-mu paling sering tercapai di minggu berenergi tinggi — jaga energi, bukan cuma jadwal",
+    weeksObserved: weeks.length,
+    supportingDataPoints: perWeek.reduce((a, w) => a + w.count, 0),
+  };
+}
+
+/**
+ * Did weekly energy shift after a career milestone was added? Needs ≥2 rituals
+ * with energy on each side of the milestone; surfaces the biggest shift ≥ 0.75.
+ */
+export function milestoneEnergyCorrelation(careerMilestones, reviews) {
+  const weeks = ritualWeeks(reviews, "energyLevel")
+    .map((r) => ({ ts: new Date(r.weekOf).getTime(), energy: r.energyLevel }))
+    .sort((a, b) => a.ts - b.ts);
+  if (weeks.length < 4) return null;
+
+  const windowStart = weeks[0].ts;
+  const windowEnd = weeks[weeks.length - 1].ts + WEEK_MS;
+  const avg = (list) => list.reduce((a, w) => a + w.energy, 0) / list.length;
+
+  let best = null;
+  for (const m of careerMilestones) {
+    const ts = new Date(m.createdAt).getTime();
+    if (Number.isNaN(ts) || ts < windowStart || ts >= windowEnd) continue;
+    const before = weeks.filter((w) => w.ts < ts);
+    const after = weeks.filter((w) => w.ts >= ts);
+    if (before.length < 2 || after.length < 2) continue;
+    const delta = avg(after) - avg(before);
+    if (!best || Math.abs(delta) > Math.abs(best.delta)) {
+      best = { title: m.title, delta, weeks: weeks.length };
+    }
+  }
+  if (!best || Math.abs(best.delta) < 0.75) return null;
+
+  const points = Math.abs(best.delta).toFixed(1);
+  return {
+    type: "milestoneEnergy",
+    tone: best.delta > 0 ? "positive" : "warning",
+    headline:
+      best.delta > 0
+        ? `Sejak "${best.title}", energi mingguanmu naik rata-rata ${points} poin`
+        : `Sejak "${best.title}", energi mingguanmu turun rata-rata ${points} poin — perhatikan bebannya`,
+    weeksObserved: best.weeks,
+    supportingDataPoints: best.weeks,
+  };
+}
+
+/* ---------- Engagement gap (honest friction visibility) ---------- */
+
+/**
+ * Fires only when ritual and/or reflection has lapsed 2+ weeks. An account
+ * that never engaged returns null for that signal (nothing lapsed — you can't
+ * lapse what you never started), and the whole function returns null when
+ * neither signal is lapsed. Calm register, no streaks, no alerts.
+ */
+export function engagementGapSignal(reviews, reflections) {
+  const weeksSinceLatest = (items, dateOf) => {
+    let latest = null;
+    for (const it of items) {
+      const ts = new Date(dateOf(it)).getTime();
+      if (!Number.isNaN(ts) && (latest === null || ts > latest)) latest = ts;
+    }
+    return latest === null ? null : Math.floor((Date.now() - latest) / WEEK_MS);
+  };
+
+  const weeksSinceLastRitual = weeksSinceLatest(reviews, (r) => r.createdAt || r.weekOf);
+  const weeksSinceLastReflection = weeksSinceLatest(reflections, (r) => r.createdAt);
+  const ritualLapsed = weeksSinceLastRitual !== null && weeksSinceLastRitual >= 2;
+  const reflectionLapsed = weeksSinceLastReflection !== null && weeksSinceLastReflection >= 2;
+  if (!ritualLapsed && !reflectionLapsed) return null;
+
+  const parts = [];
+  if (ritualLapsed) parts.push(`ritual mingguan terakhir ${weeksSinceLastRitual} minggu lalu`);
+  if (reflectionLapsed) parts.push(`refleksi terakhir ${weeksSinceLastReflection} minggu lalu`);
+
+  return {
+    type: "engagementGap",
+    tone: "gentle-notice",
+    headline: `Life Compass-mu sedang senyap — ${parts.join(", ")}`,
+    weeksSinceLastRitual,
+    weeksSinceLastReflection,
+  };
+}
+
+/* ---------- Ritual follow-up ("nagih ke masa lalu") ---------- */
+
+/**
+ * Focus items from past rituals (1..windowWeeks weeks ago) with no resolution
+ * recorded in that review's `focusStatus` map ({index: "resolved"|"carried"|"dropped"}).
+ * The current week's own ritual never nags. Oldest first.
+ */
+export function unresolvedFocusItems(reviews, windowWeeks = 3) {
+  const now = Date.now();
+  const out = [];
+  for (const r of reviews) {
+    const ts = new Date(r.weekOf || r.createdAt).getTime();
+    if (Number.isNaN(ts)) continue;
+    const weeksAgo = Math.floor((now - ts) / WEEK_MS);
+    if (weeksAgo < 1 || weeksAgo > windowWeeks) continue;
+    (r.nextWeekFocus || []).forEach((text, index) => {
+      if (!text || r.focusStatus?.[index]) return;
+      out.push({ reviewId: r.id, index, text, weekOf: r.weekOf, weeksAgo });
+    });
+  }
+  out.sort((a, b) => b.weeksAgo - a.weeksAgo);
+  return out;
+}
+
+/* ---------- Goal evidence ("goal butuh bukti") ---------- */
+
+const EVIDENCE_WINDOW_MS = 14 * 86400000; // 2 weeks, matching the engagement-gap cadence
+
+/**
+ * Whether an in-progress goal's claimed momentum is backed by recent activity
+ * in its own life area. Linkage reuses the existing `goal.area` field — no new
+ * schema needed. Evidence per area (existing data only, nothing new to log):
+ *   skills  → any skill practiced (`lastPracticedAt`) within the window
+ *   career  → any career milestone added (`createdAt`) within the window
+ *   finance → any transaction recorded, or a goal milestone achieved, within the window
+ * Areas with no natural evidence source (growth/business) are exempt, as are
+ * non-in-progress goals. A goal younger than the window returns "pending"
+ * (not enough time elapsed ≠ negative signal — momentumIndex honesty pattern).
+ */
+export function goalEvidenceStatus(goal, { skills = [], careerMilestones = [], transactions = [] } = {}) {
+  const source = ["skills", "career", "finance"].includes(goal.area) ? goal.area : null;
+  if (!source) return { state: "exempt", source: null, lastEvidenceAt: null };
+  if (goal.status !== "in_progress") return { state: "exempt", source, lastEvidenceAt: null };
+
+  const now = Date.now();
+  const createdTs = new Date(goal.createdAt || 0).getTime();
+  if (!Number.isNaN(createdTs) && now - createdTs < EVIDENCE_WINDOW_MS) {
+    return { state: "pending", source, lastEvidenceAt: null };
+  }
+
+  let latest = null;
+  const consider = (d) => {
+    if (!d) return;
+    const ts = new Date(d).getTime();
+    if (Number.isNaN(ts) || now - ts > EVIDENCE_WINDOW_MS || ts > now) return;
+    if (latest === null || ts > latest) latest = ts;
+  };
+
+  if (source === "skills") {
+    for (const s of skills) consider(s.lastPracticedAt);
+  } else if (source === "career") {
+    for (const m of careerMilestones) consider(m.createdAt);
+  } else {
+    for (const t of transactions) consider(t.date);
+    for (const m of goal.milestones || []) {
+      if (m.achieved) consider(m.achievedAt);
+    }
+  }
+
+  return latest !== null
+    ? { state: "evidenced", source, lastEvidenceAt: new Date(latest).toISOString() }
+    : { state: "unproven", source, lastEvidenceAt: null };
 }
 
 /* ---------- Goal progress helper ---------- */

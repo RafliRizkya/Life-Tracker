@@ -1,7 +1,7 @@
 "use client";
 
 import { useLifeStore } from "@/lib/store";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowUpRight,
   Sparkles,
@@ -38,9 +38,15 @@ export default function DashboardPage() {
     activity,
     portfolio,
     careerMilestones,
+    reviews,
+    reflections,
+    settings,
     toggleCommitment,
     openQuickAdd,
   } = useLifeStore();
+
+  const osReducedMotion = useReducedMotion();
+  const reducedMotion = settings.reducedMotion || osReducedMotion;
 
   const totals = monthlyTotals(transactions);
   const savings = savingsProgress(goals, transactions);
@@ -53,6 +59,8 @@ export default function DashboardPage() {
     reminders,
     portfolio,
     milestones: careerMilestones,
+    reviews,
+    reflections,
   });
 
   const todaysFocus = commitments.find((c) => !c.done && c.priority === "high") ||
@@ -60,14 +68,17 @@ export default function DashboardPage() {
   const upcoming = commitments.filter((c) => !c.done).slice(0, 5);
   const nextReminders = reminders.filter((r) => r.active).slice(0, 3);
 
+  // Static variants when reduced motion is on — content lands in place, no fade/slide.
   const container = {
     hidden: { opacity: 1 },
-    show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+    show: { opacity: 1, transition: reducedMotion ? {} : { staggerChildren: 0.06 } },
   };
-  const item = {
-    hidden: { opacity: 0, y: 14 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
-  };
+  const item = reducedMotion
+    ? { hidden: { opacity: 1, y: 0 }, show: { opacity: 1, y: 0 } }
+    : {
+        hidden: { opacity: 0, y: 14 },
+        show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 230, damping: 26, mass: 0.9 } },
+      };
 
   return (
     <div className="max-w-6xl mx-auto px-5 md:px-8 pt-10 pb-24">
@@ -310,6 +321,11 @@ export default function DashboardPage() {
             <div className="mt-2 text-[12.5px] text-ink-soft dark:text-lime/90 leading-relaxed">
               {insights[0]?.body ?? "Setiap catatan kecil hari ini jadi bahan cerita kariermu bulan depan. Lanjutkan."}
             </div>
+            {insights[0]?.meta && (
+              <div className="mt-2 font-mono text-[10.5px] text-ink-soft/70 dark:text-lime/60">
+                {insights[0].meta}
+              </div>
+            )}
             <Link href="/compass" className="mt-4 btn-dark inline-flex bg-forest-700">
               Buka Life Compass
             </Link>
@@ -401,19 +417,37 @@ export default function DashboardPage() {
       {insights.length > 1 && (
         <section className="mt-14">
           <div className="eyebrow mb-3">Insight lanjutan</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <motion.div
+            variants={container}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-40px" }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-3"
+          >
             {insights.slice(1).map((ins) => (
-              <div key={ins.key} className={clsx(
-                "rounded-xl border p-4",
-                ins.tone === "warning" ? "border-terracotta/50 bg-terracotta/10" :
-                ins.tone === "positive" ? "border-forest-500/40 bg-forest-500/5" :
-                "border-line bg-card dark:bg-night-card dark:border-night-border"
-              )}>
-                <div className="text-[13.5px] font-semibold">{ins.title}</div>
-                <div className="text-[12px] text-ink-muted mt-1">{ins.body}</div>
-              </div>
+              <motion.div
+                key={ins.key}
+                variants={item}
+                data-testid={`insight-${ins.key}`}
+                className={clsx(
+                  "rounded-xl border border-line dark:border-night-border bg-card dark:bg-night-card p-4 border-l-[3px]",
+                  ins.tone === "warning"
+                    ? "border-l-terracotta"
+                    : ins.tone === "positive"
+                      ? "border-l-forest-500 dark:border-l-lime"
+                      : "border-l-line dark:border-l-night-border"
+                )}
+              >
+                <div className="text-[13.5px] font-semibold leading-snug">{ins.title}</div>
+                {ins.body && (
+                  <div className="text-[12px] text-ink-muted mt-1 leading-relaxed">{ins.body}</div>
+                )}
+                {ins.meta && (
+                  <div className="mt-2 font-mono text-[10.5px] text-ink-muted/80">{ins.meta}</div>
+                )}
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </section>
       )}
     </div>

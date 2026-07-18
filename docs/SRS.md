@@ -117,14 +117,21 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Output**: Progress bar + 6 milestone dots (10jt, 20jt, 30jt, 40jt, 50jt, 100jt) + teks status
 
 #### FR-DASH-07: Rule-Based Insights
-- **Input**: Seluruh data store
+- **Input**: Seluruh data store (termasuk `reviews` sejak 2026-07-18)
 - **Proses**: `buildInsights()` evaluasi kondisi:
   - Savings naik/turun vs bulan lalu
   - Learning spend mendukung career goal
   - SQL practice stagnation (≥3 hari)
   - Portfolio progress (2-4 dari 5)
   - BPJS jatuh tempo dalam 5 hari
-- **Output**: Array insight cards dengan tone (positive/warning) dan title/body
+  - **Korelasi lintas-modul** (2026-07-18, `docs/features/correlation-engine.md`) — 3 selector pure terpisah, hasil non-null di-append ke candidate pool:
+    - `stressSpendingCorrelation(reviews, transactions)` — rata-rata pengeluaran (non-saving) minggu stres tinggi (≥4) vs minggu tenang; fire hanya bila kontras ≥20%, dua arah (naik = warning, hemat = positive). Min ≥3 minggu ritual ber-`stressLevel` dengan transaksi.
+    - `energyGoalVelocityCorrelation(reviews, goals)` — goal milestone `achievedAt` per minggu, dibandingkan minggu energi tinggi (≥4) vs lainnya; fire bila >1.5×. Min ≥3 minggu ber-`energyLevel` + ≥1 achievement dalam window. (Catatan: `goal.progress` tidak punya histori — `achievedAt` adalah satu-satunya sinyal progress ber-timestamp.)
+    - `milestoneEnergyCorrelation(careerMilestones, reviews)` — rata-rata energi sebelum vs sesudah `createdAt` milestone karier; fire bila |Δ| ≥ 0.75 poin, dua arah. Min 2 ritual ber-energi di tiap sisi.
+  - Kontrak kejujuran (pola `momentumIndex()`): tiap selector return `null` bila data di bawah ambang — tidak pernah kartu lemah/parsial. Return shape seragam: `{ type, tone, headline, weeksObserved, supportingDataPoints }`.
+  - **Engagement gap** (2026-07-18): `engagementGapSignal(reviews, reflections)` — fire hanya bila ritual dan/atau refleksi lewat 2+ minggu (dilacak independen); akun yang belum pernah engage return `null` (tidak ada yang lapse). `tone: "gentle-notice"` → render lewat cabang kartu netral (bukan warning), tanpa streak/notifikasi luar app.
+  - Privacy: ketiganya hanya membaca field numerik/tanggal/kategori terstruktur — tidak pernah free-text `reviews`/`reflections`; tidak terhubung ke `/ai` context builder.
+- **Output**: Array insight cards dengan tone (positive/warning) dan title/body; kartu korelasi memakai key `corr-<type>`
 
 #### FR-DASH-08: Commitments List
 - **Input**: `commitments.filter(c => !c.done).slice(0, 5)`
@@ -189,6 +196,12 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 #### FR-GOAL-08: Savings Milestone Toggle
 - **Action**: Toggle `achieved` boolean per milestone
 - **Effect**: Set `achievedAt` timestamp, update visual
+
+#### FR-GOAL-09: Goal Evidence Requirement (2026-07-18 — `docs/features/goal-evidence.md`)
+- **Computation**: `goalEvidenceStatus(goal, { skills, careerMilestones, transactions })` — pure, linkage via `goal.area` yang sudah ada (tanpa field baru)
+- **Evidence window**: 14 hari (`EVIDENCE_WINDOW_MS`). Per area: skills → `lastPracticedAt`; career → milestone `createdAt`; finance → transaksi tercatat atau goal milestone `achievedAt`
+- **States**: `evidenced` / `unproven` / `pending` (goal lebih muda dari window — bukan sinyal negatif) / `exempt` (area growth/business, atau status bukan in_progress)
+- **Surfacing**: chip "belum ada bukti" di kartu goal unproven; stat "on track" mensyaratkan progress ≥ 40 **dan** bukan unproven. Kontrol status manual user tidak diubah — ini overlay komputasi
 
 ---
 
@@ -377,6 +390,13 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 - **Rule**: Raw reflection/letter/ritual body text never assembled into outbound AI context — only `reflectionInsights()`/`reviewInsights()` aggregated output
 - **Verification**: Network-layer test (see `docs/features/ai-assistant.md`), not just code review
 
+#### FR-COMPASS-12: Ritual Follow-Up ("nagih ke masa lalu", 2026-07-18)
+- **Selector**: `unresolvedFocusItems(reviews, windowWeeks = 3)` — fokus dari ritual 1–3 minggu lalu tanpa entri `focusStatus`, tertua dulu; ritual minggu berjalan tidak pernah menagih
+- **Schema**: additive `focusStatus: {index: "resolved" | "carried" | "dropped"}` pada review (default `{}`; absen di review lama = unresolved, tanpa penandaan retroaktif)
+- **Action**: `setFocusResolution(reviewId, index, status)` — toggle ringan, review lama tetap immutable
+- **UI**: kartu "Dari ritual sebelumnya" di atas form Ritual Mingguan; per item: Sudah jalan / Bawa ke minggu ini (mengisi slot fokus kosong pertama form baru, disabled bila penuh) / Lepaskan dengan sadar
+- **Scope**: tidak menyentuh `reviewInsights()`/`momentumIndex()`/`weeklyNarrativeDraft()`/AI context
+
 ---
 
 ### 3.7 Cross-Module Features (FR-CROSS)
@@ -389,12 +409,15 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
   - Quick add: Commitment, Goal, Transaction, Milestone, Skill, Reminder
   - Preferensi: Toggle dark/light mode
 - **Behavior**: Keyboard navigation, Esc to close, auto-close on action
+- **Visual (2026-07-18, Wave 2 UI/UX)**: panel `surface-glass` (bg-elev 86% + backdrop-blur, existing tokens), entrance fade/scale 120ms (statis bila reduced motion — store flag atau OS), row min-height 44px dengan transition-colors 100ms sebagai responsiveness cue
 
 #### FR-CROSS-02: Quick Add Modal
 - **6 types**: Commitment, Goal, Transaction, Career Milestone, Skill, Reminder
 - **Type tabs**: Pill buttons, switch form fields per type
-- **Animation**: Scale + y spring transition (Framer Motion)
+- **Animation**: Scale + y spring transition (Framer Motion); statis bila reduced motion (store flag atau OS, sejak 2026-07-18)
+- **Visual (2026-07-18, Wave 2 UI/UX)**: panel `surface-glass` (sama dengan Command Palette)
 - **Notification**: "Data tersimpan" notification on success
+- **Known gap (dicatat, belum diperbaiki — functional change di luar scope Wave 2)**: Esc tidak menutup modal (tidak ada keydown handler); menutup via backdrop click atau tombol X
 
 #### FR-CROSS-03: Notifications Drawer
 - **Trigger**: Bell icon in TopBar
@@ -418,6 +441,13 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
   - `< lg` (1024px): Mobile — sidebar hidden, hamburger menu
   - `≥ lg`: Desktop — sidebar sticky, 268px + content grid
 - **Sidebar**: Fixed overlay on mobile with backdrop blur
+
+#### FR-CROSS-07: Guideline Page (2026-07-19)
+- **Route**: `/guide` — entri nav terakhir (Sidebar, Command Palette dengan keywords "panduan tutorial", TopBar)
+- **Struktur**: 8 section accordion (satu terbuka default; 7 modul + pintasan lintas-modul), tiap section: tagline, langkah bernomor, tombol aksi interaktif
+- **Interaktif**: tombol aksi memicu perilaku app nyata — `openQuickAdd(type)` dengan tipe sesuai konteks section, `openPalette()`, navigasi ke halaman modul
+- **Progress**: toggle "Tandai dipahami" per section, persisted ke localStorage key sendiri (`guide-progress::v1` — preferensi UI, sengaja di luar store utama), progress bar "N dari 8 dipahami"
+- **Motion**: expand/collapse 300ms, statis bila reduced motion (store flag atau OS)
 
 ---
 
@@ -633,6 +663,7 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | finance | string | | Finance reflection (Future) |
 | careerProgress | string | | Career/skill update (Future) |
 | nextWeekFocus | string[] | | 1–3 focus items (Future) |
+| focusStatus | object | | `{index: "resolved" \| "carried" \| "dropped"}` — resolusi follow-up per item (added 2026-07-18, FR-COMPASS-12; absen di review lama = unresolved) |
 | isPrivate | boolean | | Default: true (added 2026-07-18 — previously absent, see FR-COMPASS-11) |
 
 ### 5.12 Notification

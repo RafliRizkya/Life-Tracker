@@ -7,7 +7,7 @@ import { detectIntent, buildContext } from "@/lib/ai/contextBuilder";
 import { SectionHeader, EmptyState } from "@/components/ui";
 import ChatThread from "@/components/ai/ChatThread";
 import ChatInput from "@/components/ai/ChatInput";
-import { Bot } from "lucide-react";
+import { Bot, Lock } from "lucide-react";
 
 const STARTER_PROMPTS = [
   "Ringkas kondisi keuanganku bulan ini",
@@ -136,9 +136,9 @@ export default function AiPage() {
                     key={p}
                     type="button"
                     onClick={() => sendMessage(p)}
-                    className="surface-soft px-3 py-2 text-[12.5px] hover:border-forest-500/50 dark:hover:border-lime/40 transition-colors"
+                    className="surface-soft border-dashed px-3 py-2 min-h-[44px] text-[13px] font-reflect italic text-ink-soft hover:border-forest-500/50 dark:hover:border-lime/40 transition-colors"
                   >
-                    {p}
+                    &ldquo;{p}&rdquo;
                   </button>
                 ))}
               </div>
@@ -151,6 +151,9 @@ export default function AiPage() {
 
       <div className="sticky bottom-4 mt-4">
         <ChatInput onSend={sendMessage} disabled={streaming} />
+        <div className="eyebrow mt-2 text-center text-ink-muted flex items-center justify-center gap-1.5">
+          <Lock className="h-2.5 w-2.5" /> Read-only — asisten hanya membaca datamu, tidak pernah mengubahnya
+        </div>
       </div>
     </div>
   );

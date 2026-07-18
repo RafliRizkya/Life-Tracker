@@ -10,6 +10,7 @@ import {
   Sparkles,
   Compass,
   Bot,
+  BookOpen,
   Command,
   X,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/skills", label: "Skills", icon: Sparkles },
   { href: "/compass", label: "Life Compass", icon: Compass },
   { href: "/ai", label: "Asisten AI", icon: Bot },
+  { href: "/guide", label: "Guideline", icon: BookOpen },
 ];
 
 export default function Sidebar({ mobileOpen, onClose }) {

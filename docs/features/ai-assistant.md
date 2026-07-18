@@ -70,6 +70,18 @@ All 5 confirmed live and free (`pricing.prompt/completion === "0"`) against Open
 - Full UI flow via Playwright: nav entry, empty state + starter prompts, streaming response renders progressively, markdown renders, citation badge shows correct module(s), thread persists across reload, ⌘K palette lists the new page, no console errors introduced.
 - Privacy boundary (see above) — the most important check, verified at the actual network layer.
 
+## Visual treatment: ghost-text / read-only reinforcement (added 2026-07-18, presentation-only)
+
+Source brief: `docs/prompt/ai-chat-ghost-text.md` (Wave 3 of the UI/UX Elevation Brief). No changes to contextBuilder/promptBuilder/openrouter or any logic — styling only:
+
+- **Assistant bubbles** moved off the `card` class (which elsewhere means "saved/committed content") to a soft 60%-opacity surface with `text-ink-soft` — a visual register that says "being discussed," not "done." While streaming, the in-progress bubble renders at 75% opacity and settles to full on completion (Cursor ghost-text feel); the opacity transition is skipped under reduced motion (store flag or OS).
+- **Markdown tables** softened from full-bordered grid + header fill to horizontal hairlines with uppercase muted headers — reported facts, not an editable spreadsheet (`.prose-chat` in globals.css).
+- **Starter prompts** restyled as invitations: dashed border, quoted, Instrument Serif italic, 44px min-height — not solid action buttons.
+- **Persistent read-only line** added under the chat input: "Read-only — asisten hanya membaca datamu, tidak pernah mengubahnya" with a lock icon — the constraint is now legible at a glance, not just true in the backend.
+- **Citation badge** kept at full prominence (trust mechanism); only its Life Compass labels changed to "Life Compass (Jurnal)" / "Life Compass (Ritual)" so the badge's `·` separator no longer makes two labels read as four modules.
+
+Verified via Playwright with a mocked SSE `/api/ai/chat` route (no real OpenRouter calls): empty state, waiting indicator, completed response with markdown + table + citation badge, reduced-motion (dots static, computed opacity 1), desktop/390px/dark screenshots, no console errors.
+
 ## Deferred to later passes
 
 Specialized per-domain agents (Finance/Career/Goals/Reflection/Productivity/Life Strategist routing), proactive anomaly/forecast detection ("spending spike," "burnout risk," etc.), artifact generation (Daily Briefings, Executive Summaries, Resume Achievements as PDF/DOCX/CSV/MD), multi-conversation management, slash commands (`/report`, `/finance`), new keyboard shortcuts. Resuming any of these needs no architectural rework — the context builder / prompt builder / model router separation already supports layering agents and richer outputs on top.

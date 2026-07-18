@@ -128,7 +128,7 @@ export default function CareerPage() {
           }
         />
       ) : (
-        <CareerTrail milestones={filtered} onSelect={setSelected} />
+        <CareerTrail milestones={filtered} onSelect={setSelected} selectedId={selected?.id} />
       )}
 
       {/* Portfolio */}

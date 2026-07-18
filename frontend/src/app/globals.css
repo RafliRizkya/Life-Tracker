@@ -104,6 +104,16 @@
     border-radius: 14px;
   }
 
+  /* Raycast-style floating panel: near-opaque (0.86 keeps text AA) over backdrop blur. */
+  .surface-glass {
+    background: rgb(var(--bg-elev) / 0.86);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    backdrop-filter: blur(18px) saturate(1.15);
+    border: 1px solid rgb(var(--line) / 0.75);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 24px 60px -24px rgba(0, 0, 0, 0.28);
+  }
+
   .btn-dark {
     display: inline-flex;
     align-items: center;
@@ -217,13 +227,24 @@
     font-family: "DM Mono", ui-monospace, monospace;
     font-size: 0.9em;
   }
+  /* Tables read as reported facts, not an editable grid: horizontal hairlines
+     only, no cell boxes, no header fill. */
   .prose-chat table { width: 100%; border-collapse: collapse; margin: 0.6em 0; font-size: 0.95em; }
   .prose-chat th, .prose-chat td {
-    border: 1px solid rgb(var(--line));
-    padding: 6px 10px;
+    border: 0;
+    border-bottom: 1px solid rgb(var(--line) / 0.6);
+    padding: 6px 12px 6px 0;
     text-align: left;
   }
-  .prose-chat th { background: rgb(var(--line) / 0.4); font-weight: 600; }
+  .prose-chat th {
+    background: transparent;
+    font-weight: 600;
+    font-size: 0.8em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(var(--muted));
+  }
+  .prose-chat tr:last-child td { border-bottom: 0; }
 
   /* Grid background pattern for hero blocks — very subtle */
   .grain {
