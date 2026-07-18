@@ -3,30 +3,16 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
-import { Card, Progress } from "@/components/ui";
+import { Card, Progress, EmptyState } from "@/components/ui";
 import { CAREER_TYPES } from "@/lib/seed";
 import { careerReadiness } from "@/lib/insights";
-import { formatMonthYear } from "@/lib/format";
+import { formatMonthYear, formatMonthRange, formatDuration } from "@/lib/format";
 import {
-  Plus, ExternalLink, X, GraduationCap, Award, Briefcase, FolderKanban,
-  Sparkles, Target, ChevronRight,
+  Plus, ExternalLink, X, Sparkles, FolderKanban,
 } from "lucide-react";
 import clsx from "clsx";
-
-const TYPE_ICON = {
-  education: GraduationCap,
-  certificate: Award,
-  experience: Briefcase,
-  project: FolderKanban,
-  skill: Sparkles,
-  target: Target,
-};
-
-const STATUS_META = {
-  completed: { label: "Completed", color: "#315d48" },
-  in_progress: { label: "In progress", color: "#eb9b63" },
-  planned: { label: "Planned", color: "#8a9a5b" },
-};
+import CareerTrail from "@/components/career/CareerTrail";
+import { STATUS_META } from "@/components/career/constants";
 
 export default function CareerPage() {
   const {
@@ -40,6 +26,11 @@ export default function CareerPage() {
   const [selected, setSelected] = useState(null);
 
   const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
+
+  const currentRole = useMemo(() => {
+    const ongoing = careerMilestones.filter((m) => m.type === "experience" && m.ongoing);
+    return ongoing.sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0] || null;
+  }, [careerMilestones]);
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -77,8 +68,10 @@ export default function CareerPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <Card>
           <div className="eyebrow">Current trajectory</div>
-          <div className="h-display text-[22px] mt-1">Data Analyst</div>
-          <div className="text-[11.5px] text-ink-muted mt-1">Target role · Dec 2026</div>
+          <div className="h-display text-[22px] mt-1">{currentRole?.title || "Business Data Analyst"}</div>
+          <div className="text-[11.5px] text-ink-muted mt-1">
+            {currentRole ? `${currentRole.organization} · sejak ${formatMonthYear(currentRole.month, currentRole.year)}` : "Peran saat ini"}
+          </div>
         </Card>
         <Card>
           <div className="eyebrow">Next proof</div>
@@ -113,89 +106,30 @@ export default function CareerPage() {
         <Legend color="#315d48" label="Completed" />
         <Legend color="#eb9b63" label="In progress" glow />
         <Legend color="#8a9a5b" label="Planned" outline />
+        <span className="text-line dark:text-night-border">|</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-3 w-1 rounded-sm bg-ink-muted" /> Blok solid = pengalaman kerja
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-ink-muted" style={{ boxShadow: "0 0 0 3px rgba(0,0,0,0.08)" }} /> Badge = milestone
+        </span>
       </div>
 
-      {/* Timeline (immersive) */}
-      <div className="relative">
-        {/* growing line */}
-        <motion.div
-          initial={{ scaleY: 0 }}
-          animate={{ scaleY: 1 }}
-          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-          style={{ transformOrigin: "top" }}
-          className={clsx(
-            "absolute left-[26px] md:left-[130px] top-2 bottom-0 w-[2px]",
-            "bg-gradient-to-b from-forest-400/80 via-forest-400/40 to-transparent",
-            "dark:from-lime/70 dark:via-lime/40 dark:to-transparent"
-          )}
+      {/* Trail (gamified) */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title="Belum ada cerita di sini."
+          body="Setiap milestone — sekecil apapun — layak dicatat. Mulai dari satu."
+          action={
+            <button className="btn-dark" onClick={() => openQuickAdd("milestone")}>
+              <Plus className="h-3.5 w-3.5" /> Tambah milestone pertama
+            </button>
+          }
         />
-        <ul className="space-y-6 md:space-y-8">
-          {filtered.map((m, i) => {
-            const meta = STATUS_META[m.status] || STATUS_META.planned;
-            const Icon = TYPE_ICON[m.type] || Sparkles;
-            return (
-              <motion.li
-                key={m.id}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-80px" }}
-                transition={{ delay: i * 0.08, duration: 0.55 }}
-                className="relative pl-[64px] md:pl-[172px]"
-              >
-                {/* year (desktop) */}
-                <div className="hidden md:block absolute left-0 top-1.5 font-mono text-[11px] text-ink-muted w-[110px] text-right">
-                  {formatMonthYear(m.month, m.year)}
-                </div>
-                {/* node */}
-                <div
-                  className={clsx(
-                    "absolute left-[19px] md:left-[123px] top-1.5 w-4 h-4 rounded-full grid place-items-center border-2 transition-all",
-                    m.status === "completed" && "bg-forest-500 border-forest-500",
-                    m.status === "in_progress" && "bg-terracotta border-terracotta ring-4 ring-terracotta/25",
-                    m.status === "planned" && "bg-paper border-sage dark:bg-night dark:border-forest-500/50"
-                  )}
-                />
-                <button
-                  onClick={() => setSelected(m)}
-                  data-testid={`milestone-${m.id}`}
-                  className="w-full text-left card hover:shadow-pop transition-shadow"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="md:hidden font-mono text-[10.5px] text-ink-muted mb-1">
-                        {formatMonthYear(m.month, m.year)}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="chip" style={{ background: `${meta.color}18`, color: meta.color }}>
-                          <Icon className="h-3 w-3" /> {(CAREER_TYPES.find(t=>t.key===m.type)?.label) || m.type}
-                        </span>
-                        <span className="chip-muted chip">{meta.label}</span>
-                      </div>
-                      <h3 className="h-display text-[20px] mt-2 leading-tight">{m.title}</h3>
-                      {m.organization && (
-                        <div className="text-[12px] text-ink-muted mt-1">{m.organization}</div>
-                      )}
-                      {m.description && (
-                        <p className="text-[12.5px] text-ink-soft mt-2 leading-relaxed line-clamp-2">
-                          {m.description}
-                        </p>
-                      )}
-                      {m.skills && m.skills.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {m.skills.slice(0, 5).map((s) => (
-                            <span key={s} className="chip">{s}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-ink-muted mt-1 flex-none" />
-                  </div>
-                </button>
-              </motion.li>
-            );
-          })}
-        </ul>
-      </div>
+      ) : (
+        <CareerTrail milestones={filtered} onSelect={setSelected} />
+      )}
 
       {/* Portfolio */}
       <section className="mt-20">
@@ -215,6 +149,13 @@ export default function CareerPage() {
             <Plus className="h-3.5 w-3.5" /> Tambah project
           </button>
         </div>
+        {portfolio.length === 0 && (
+          <EmptyState
+            icon={FolderKanban}
+            title="Belum ada project di sini."
+            body="Portfolio nggak harus sempurna untuk dimulai — satu project kecil sudah bukti kerja."
+          />
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {portfolio.map((p) => (
             <Card key={p.id}>
@@ -256,7 +197,7 @@ export default function CareerPage() {
                 </div>
                 <Progress value={(s.level / s.target) * 100} className="mt-2" />
                 <div className="mt-2 text-[11.5px] text-ink-muted">
-                  {gap === 0 ? "Sudah pada target." : `${gap} level lagi untuk target role.`}
+                  {gap === 0 ? "Target tercapai — solid." : `${gap} level lagi untuk target role.`}
                 </div>
               </div>
             );
@@ -331,7 +272,9 @@ function MilestoneDetail({ milestone, onClose, onUpdate, onRemove }) {
       >
         <div className="sticky top-0 flex items-center justify-between p-5 bg-paper/95 dark:bg-night/95 backdrop-blur border-b border-line dark:border-night-border">
           <div className="min-w-0">
-            <div className="eyebrow">{formatMonthYear(milestone.month, milestone.year)}</div>
+            <div className="eyebrow">
+              {formatMonthRange(milestone.month, milestone.year, milestone.endMonth, milestone.endYear, milestone.ongoing)}
+            </div>
             <div className="h-display text-[22px] mt-1 truncate">{milestone.title}</div>
           </div>
           <button onClick={onClose} className="p-1.5 -mr-1 rounded-md hover:bg-line/50" data-testid="close-milestone-detail">
@@ -368,7 +311,45 @@ function MilestoneDetail({ milestone, onClose, onUpdate, onRemove }) {
               />
             </Field>
           </div>
-          {(
+
+          <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
+            <input
+              type="checkbox"
+              checked={!!milestone.ongoing}
+              onChange={(e) => onUpdate({ ongoing: e.target.checked })}
+              data-testid="milestone-ongoing"
+            />
+            Masih berlangsung (tampil sebagai &ldquo;Sekarang&rdquo;)
+          </label>
+
+          {!milestone.ongoing && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Bulan selesai (opsional)">
+                <select
+                  className="input"
+                  value={milestone.endMonth ?? ""}
+                  onChange={(e) => onUpdate({ endMonth: e.target.value ? Number(e.target.value) : null })}
+                >
+                  <option value="">—</option>
+                  {["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"].map((m, i) => (
+                    <option key={m} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Tahun selesai (opsional)">
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  className="input"
+                  value={milestone.endYear ?? ""}
+                  onChange={(e) => onUpdate({ endYear: e.target.value ? Number(e.target.value) : null })}
+                />
+              </Field>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Organisasi / penerbit">
               <input
                 className="input"
@@ -377,12 +358,27 @@ function MilestoneDetail({ milestone, onClose, onUpdate, onRemove }) {
                 data-testid="milestone-organization"
               />
             </Field>
-          )}
-          <Field label="Deskripsi">
+            <Field label="Lokasi (opsional)">
+              <input
+                className="input"
+                value={milestone.location || ""}
+                onChange={(e) => onUpdate({ location: e.target.value })}
+              />
+            </Field>
+          </div>
+          <Field label="Deskripsi singkat (tampil di kartu)">
             <textarea
-              className="input h-24 resize-none"
+              className="input h-16 resize-none"
               value={milestone.description || ""}
               onChange={(e) => onUpdate({ description: e.target.value })}
+            />
+          </Field>
+          <Field label="Detail / pencapaian (satu baris = satu poin)">
+            <textarea
+              className="input h-28 resize-none"
+              value={(milestone.highlights || []).join("\n")}
+              onChange={(e) => onUpdate({ highlights: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+              data-testid="milestone-highlights"
             />
           </Field>
           <Field label="Skill terkait (koma)">

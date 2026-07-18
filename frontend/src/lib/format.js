@@ -48,6 +48,30 @@ export function formatMonthYear(month, year) {
   return `${MONTHS_ID[month - 1]} ${year}`;
 }
 
+/** "Apr 2026 — Sekarang" / "Jul 2025 — Agu 2025" / "Jun 2025" (single point, no end date). */
+export function formatMonthRange(startMonth, startYear, endMonth, endYear, ongoing) {
+  const start = formatMonthYear(startMonth, startYear);
+  if (ongoing) return `${start} — Sekarang`;
+  if (endMonth == null || endYear == null) return start;
+  if (endMonth === startMonth && endYear === startYear) return start;
+  return `${start} — ${formatMonthYear(endMonth, endYear)}`;
+}
+
+/** Duration in "X tahun Y bulan" — computed from the range, never stored (always correct). */
+export function formatDuration(startMonth, startYear, endMonth, endYear, ongoing) {
+  if (startMonth == null || startYear == null) return "";
+  const now = new Date();
+  const eM = ongoing ? now.getMonth() + 1 : endMonth ?? startMonth;
+  const eY = ongoing ? now.getFullYear() : endYear ?? startYear;
+  const months = Math.max(1, (eY - startYear) * 12 + (eM - startMonth) + 1);
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  const parts = [];
+  if (years > 0) parts.push(`${years} tahun`);
+  if (rem > 0 || years === 0) parts.push(`${rem} bulan`);
+  return parts.join(" ");
+}
+
 export function formatDateID(dateString) {
   if (!dateString) return "";
   const d = new Date(dateString);

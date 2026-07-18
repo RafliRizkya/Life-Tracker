@@ -56,7 +56,7 @@ export default function NotificationsDrawer() {
               {list.length === 0 && (
                 <div className="text-center py-12 text-ink-muted">
                   <Bell className="mx-auto h-5 w-5 opacity-40" />
-                  <div className="mt-3 text-sm">Tidak ada notifikasi.</div>
+                  <div className="mt-3 text-sm">Sepi di sini. Semua sudah kamu urus.</div>
                 </div>
               )}
               {list.map((n) => (

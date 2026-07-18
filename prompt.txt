@@ -1,0 +1,31 @@
+Task
+
+Design the best WhatsApp integration for this project.
+
+Goal
+
+Allow me to record activities by sending WhatsApp messages.
+
+Examples
+
+- beli kopi 4000 pake bca
+- isi bensin 50rb cash
+- gaji masuk 4725000
+- nabung 1000000
+- selesai belajar SQL 2 jam
+- workout 45 menit
+
+Requirements
+
+- recommend the best architecture
+- compare possible integration approaches
+- support natural language
+- automatically map messages into the correct module
+- preserve current architecture
+- support future AI parsing
+- prioritize privacy
+- offline-first where possible
+
+Do not implement yet.
+
+Present the architecture, tradeoffs, and implementation plan first.

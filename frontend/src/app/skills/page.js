@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
-import { Card, Progress } from "@/components/ui";
+import { Card, Progress, EmptyState } from "@/components/ui";
 import { SKILL_CATEGORIES } from "@/lib/seed";
 import { skillMomentum } from "@/lib/insights";
 import { formatDateID } from "@/lib/format";
@@ -69,6 +69,18 @@ export default function SkillsPage() {
       </div>
 
       {/* Skill constellation */}
+      {filtered.length === 0 && (
+        <EmptyState
+          icon={Sparkles}
+          title="Belum ada skill di kategori ini."
+          body="Pilih kategori lain, atau tambahkan skill baru yang lagi kamu asah."
+          action={
+            <button className="btn-dark" onClick={() => openQuickAdd("skill")}>
+              <Plus className="h-3.5 w-3.5" /> Tambah skill
+            </button>
+          }
+        />
+      )}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

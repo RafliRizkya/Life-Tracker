@@ -12,7 +12,7 @@ const TITLES = {
   "/career": "Career",
   "/finance": "Finance",
   "/skills": "Skills",
-  "/review": "Weekly Review",
+  "/compass": "Life Compass",
 };
 
 export default function TopBar({ onMobileMenu }) {

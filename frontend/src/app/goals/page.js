@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
-import { Card, Progress } from "@/components/ui";
+import { Card, Progress, EmptyState } from "@/components/ui";
 import {
   Plus, ArrowUpRight, Archive, Target, ChevronRight, X, CheckCircle2,
 } from "lucide-react";
@@ -65,6 +65,18 @@ export default function GoalsPage() {
       </div>
 
       {/* grid */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Target}
+          title="Belum ada goal di sini."
+          body="Set satu target, sekecil apapun — dari situ arah mulai kelihatan."
+          action={
+            <button className="btn-dark" onClick={() => openQuickAdd("goal")}>
+              <Plus className="h-3.5 w-3.5" /> Buat goal pertama
+            </button>
+          }
+        />
+      ) : (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -111,6 +123,7 @@ export default function GoalsPage() {
           );
         })}
       </motion.div>
+      )}
 
       {/* Career breakdown */}
       <section className="mt-16">

@@ -13,10 +13,15 @@ export default function Providers({ children }) {
   const hydrated = useLifeStore((s) => s.hydrated);
   const settings = useLifeStore((s) => s.settings);
   const openPalette = useLifeStore((s) => s.openPalette);
+  const syncWhatsAppTransactions = useLifeStore((s) => s.syncWhatsAppTransactions);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (hydrated) syncWhatsAppTransactions();
+  }, [hydrated, syncWhatsAppTransactions]);
 
   // Theme
   useEffect(() => {

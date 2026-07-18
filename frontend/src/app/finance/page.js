@@ -145,8 +145,8 @@ export default function FinancePage() {
           <div className="eyebrow">Spending by category</div>
           <div className="h-display text-[20px] mt-1 mb-2">Kemana uangmu pergi</div>
           {catPie.length === 0 ? (
-            <div className="h-[180px] grid place-items-center text-[13px] text-ink-muted">
-              Belum ada pengeluaran bulan ini.
+            <div className="h-[180px] grid place-items-center text-[13px] text-ink-muted text-center px-4">
+              Belum ada pengeluaran tercatat. Begitu kamu mulai, semuanya bakal muncul di sini.
             </div>
           ) : (
             <div className="flex items-center gap-3">

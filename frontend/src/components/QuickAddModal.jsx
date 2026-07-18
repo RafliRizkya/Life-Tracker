@@ -28,6 +28,10 @@ const empty = {
   year: new Date().getFullYear(),
   status: "planned",
   organization: "",
+  location: "",
+  ongoing: false,
+  endMonth: "",
+  endYear: new Date().getFullYear(),
   description: "",
   skills: "",
   evidenceUrl: "",
@@ -99,7 +103,11 @@ export default function QuickAddModal() {
         type: form.category || "project",
         month: Number(form.month),
         year: Number(form.year),
+        ongoing: form.ongoing,
+        endMonth: form.ongoing || !form.endMonth ? null : Number(form.endMonth),
+        endYear: form.ongoing || !form.endMonth ? null : Number(form.endYear),
         organization: form.organization,
+        location: form.location,
         description: form.description,
         skills,
         evidenceUrl: form.evidenceUrl,
@@ -126,8 +134,8 @@ export default function QuickAddModal() {
     }
 
     addNotification({
-      title: "Data tersimpan",
-      body: `${TYPE_OPTIONS.find((t) => t.key === type)?.label} "${form.title}" ditambahkan.`,
+      title: "Tersimpan ✓",
+      body: `"${form.title}" baru ditambahkan ke ${TYPE_OPTIONS.find((t) => t.key === type)?.label}.`,
       tone: "success",
     });
     close();
@@ -297,9 +305,31 @@ export default function QuickAddModal() {
                       <input type="number" min="2000" max="2100" value={form.year} onChange={(e) => up("year", e.target.value)} className="input" />
                     </Field>
                   </div>
-                  <Field label="Organisasi / penerbit">
-                    <input value={form.organization} onChange={(e) => up("organization", e.target.value)} className="input" placeholder="Google, Universitas, Perusahaan…" />
-                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Organisasi / penerbit">
+                      <input value={form.organization} onChange={(e) => up("organization", e.target.value)} className="input" placeholder="Google, Universitas, Perusahaan…" />
+                    </Field>
+                    <Field label="Lokasi (opsional)">
+                      <input value={form.location} onChange={(e) => up("location", e.target.value)} className="input" placeholder="Bandung, Jakarta…" />
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
+                    <input type="checkbox" checked={form.ongoing} onChange={(e) => up("ongoing", e.target.checked)} />
+                    Masih berlangsung (Sekarang)
+                  </label>
+                  {!form.ongoing && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Bulan selesai (opsional)">
+                        <select value={form.endMonth} onChange={(e) => up("endMonth", e.target.value)} className="input">
+                          <option value="">—</option>
+                          {MONTHS_ID_LONG.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Tahun selesai (opsional)">
+                        <input type="number" min="2000" max="2100" value={form.endYear} onChange={(e) => up("endYear", e.target.value)} className="input" />
+                      </Field>
+                    </div>
+                  )}
                   <Field label="Deskripsi">
                     <textarea value={form.description} onChange={(e) => up("description", e.target.value)} className="input h-20 resize-none" />
                   </Field>

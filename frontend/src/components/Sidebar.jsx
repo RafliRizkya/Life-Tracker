@@ -8,8 +8,8 @@ import {
   TrendingUp,
   Wallet,
   Sparkles,
-  BookOpen,
-  Feather,
+  Compass,
+  Bot,
   Command,
   X,
 } from "lucide-react";
@@ -22,8 +22,8 @@ const NAV = [
   { href: "/career", label: "Career", icon: TrendingUp },
   { href: "/finance", label: "Finance", icon: Wallet },
   { href: "/skills", label: "Skills", icon: Sparkles },
-  { href: "/reflection", label: "Reflection", icon: Feather },
-  { href: "/review", label: "Weekly Review", icon: BookOpen },
+  { href: "/compass", label: "Life Compass", icon: Compass },
+  { href: "/ai", label: "Asisten AI", icon: Bot },
 ];
 
 export default function Sidebar({ mobileOpen, onClose }) {

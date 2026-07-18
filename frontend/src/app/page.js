@@ -151,9 +151,9 @@ export default function DashboardPage() {
               </button>
             ) : (
               <div className="mt-6 text-[14px] text-ink-muted">
-                Tidak ada commitment aktif. Nikmati istirahat sejenak atau
+                Belum ada fokus hari ini. Santai dulu, atau langsung
                 <button onClick={() => openQuickAdd("commitment")} className="text-forest-500 dark:text-lime underline ml-1">
-                  buat satu fokus baru
+                  pasang satu target kecil
                 </button>.
               </div>
             )}
@@ -305,13 +305,13 @@ export default function DashboardPage() {
           <Card className="h-full bg-lime/40 dark:bg-forest-800 border-lime/70 dark:border-night-border">
             <div className="eyebrow flex items-center gap-1"><Sparkles className="h-3 w-3" /> Insight</div>
             <div className="h-display text-[20px] mt-2 leading-tight">
-              {insights[0]?.title ?? "Konsisten membangun hari-harimu."}
+              {insights[0]?.title ?? "Kamu sedang membangun sesuatu yang nyata."}
             </div>
             <div className="mt-2 text-[12.5px] text-ink-soft dark:text-lime/90 leading-relaxed">
-              {insights[0]?.body ?? "Terus catat, terus refleksi. Data yang kamu simpan hari ini adalah cerita karier bulan depan."}
+              {insights[0]?.body ?? "Setiap catatan kecil hari ini jadi bahan cerita kariermu bulan depan. Lanjutkan."}
             </div>
-            <Link href="/review" className="mt-4 btn-dark inline-flex bg-forest-700">
-              Buka weekly review
+            <Link href="/compass" className="mt-4 btn-dark inline-flex bg-forest-700">
+              Buka Life Compass
             </Link>
           </Card>
         </motion.div>
@@ -336,7 +336,7 @@ export default function DashboardPage() {
           </div>
           <ul className="divide-y divide-line dark:divide-night-border border-t border-line dark:border-night-border">
             {upcoming.length === 0 && (
-              <li className="py-6 text-[13px] text-ink-muted">Tidak ada commitment aktif. Ambil satu langkah bermakna.</li>
+              <li className="py-6 text-[13px] text-ink-muted">Belum ada langkah aktif minggu ini. Yuk, mulai dari satu.</li>
             )}
             {upcoming.map((c) => (
               <li key={c.id} className="flex items-center gap-3 py-3.5" data-testid={`commitment-${c.id}`}>

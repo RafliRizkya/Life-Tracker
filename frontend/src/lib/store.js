@@ -16,6 +16,7 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import { buildInitialState } from "./seed";
+import { isSupabaseConfigured } from "./supabase/client";
 
 const STORAGE_KEY = "rafli-life-tracker::state::v1";
 const USER_ID =
@@ -23,6 +24,23 @@ const USER_ID =
   "rafli-akbar";
 
 const nowISO = () => new Date().toISOString();
+
+/** Shared defaulting logic for a transaction, reused by manual add and WhatsApp sync. */
+function normalizeTransaction(payload) {
+  return {
+    id: nanoid(10),
+    userId: USER_ID,
+    type: "expense",
+    category: "daily",
+    amount: 0,
+    date: new Date().toISOString().slice(0, 10),
+    recurring: false,
+    notes: "",
+    createdAt: nowISO(),
+    source: "manual",
+    ...payload,
+  };
+}
 
 function loadFromStorage() {
   if (typeof window === "undefined") return null;
@@ -229,13 +247,22 @@ export const useLifeStore = create((set, get) => ({
 
   // ---------- Career milestones ----------
   addCareerMilestone: (payload) => {
+    const type = payload.type || "project";
     const item = {
       id: nanoid(10),
       userId: USER_ID,
-      type: "project",
+      type,
+      track: type === "experience" ? "experience" : "milestone",
       status: "planned",
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear(),
+      endMonth: null,
+      endYear: null,
+      ongoing: false,
+      location: "",
+      organization: "",
+      description: "",
+      highlights: [],
       skills: [],
       contribution: 5,
       evidenceUrl: "",
@@ -342,18 +369,7 @@ export const useLifeStore = create((set, get) => ({
 
   // ---------- Transactions ----------
   addTransaction: (payload) => {
-    const tx = {
-      id: nanoid(10),
-      userId: USER_ID,
-      type: "expense",
-      category: "daily",
-      amount: 0,
-      date: new Date().toISOString().slice(0, 10),
-      recurring: false,
-      notes: "",
-      createdAt: nowISO(),
-      ...payload,
-    };
+    const tx = normalizeTransaction(payload);
     set({ transactions: [tx, ...get().transactions] });
     get().logActivity(
       "finance",
@@ -361,6 +377,34 @@ export const useLifeStore = create((set, get) => ({
     );
     get().persist();
     return tx;
+  },
+  /** Pulls WhatsApp-originated transactions from Supabase and merges any not seen locally yet. */
+  syncWhatsAppTransactions: async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const res = await fetch("/api/whatsapp/pull");
+      if (!res.ok) return;
+      const rows = await res.json();
+      const existingIds = new Set(get().transactions.map((t) => t.id));
+      for (const row of rows) {
+        if (existingIds.has(row.id)) continue;
+        get().addTransaction({
+          id: row.id,
+          userId: row.user_id,
+          title: row.title,
+          type: row.type,
+          category: row.category,
+          amount: Number(row.amount),
+          date: row.date,
+          notes: row.notes || "",
+          recurring: Boolean(row.recurring),
+          source: row.source,
+          createdAt: row.created_at,
+        });
+      }
+    } catch {
+      /* best-effort — offline or Supabase unreachable, try again next mount */
+    }
   },
   updateTransaction: (id, patch) => {
     set({
@@ -426,22 +470,31 @@ export const useLifeStore = create((set, get) => ({
     get().persist();
   },
 
-  // ---------- Reviews ----------
+  // ---------- Reviews (Life Compass weekly ritual) ----------
   addReview: (payload) => {
     const r = {
       id: nanoid(10),
       userId: USER_ID,
       weekOf: new Date().toISOString().slice(0, 10),
+      // Present — grounding
+      moodWord: "",
+      energyLevel: null, // 1-5
+      stressLevel: null, // 1-5
+      // Past — recognition (highlights doubles as the editable Hero's Journey draft)
       highlights: "",
+      // Future — trajectory
       blockers: "",
       finance: "",
       careerProgress: "",
       nextWeekFocus: [],
+      linkedGoals: [],
+      linkedSkills: [],
+      isPrivate: true,
       createdAt: nowISO(),
       ...payload,
     };
     set({ reviews: [r, ...get().reviews] });
-    get().logActivity("review", `Weekly review disimpan.`);
+    get().logActivity("review", `Ritual mingguan disimpan.`);
     get().persist();
   },
 

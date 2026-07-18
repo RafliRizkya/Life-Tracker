@@ -160,14 +160,14 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
       key: "savings-up",
       tone: "positive",
       title: "Tabunganmu naik dibanding bulan lalu",
-      body: `Net saving naik dari ${prev.net.toLocaleString("id-ID")} jadi ${cur.net.toLocaleString("id-ID")}. Pertahankan pola.`,
+      body: `Dari Rp ${prev.net.toLocaleString("id-ID")} ke Rp ${cur.net.toLocaleString("id-ID")} — ritme ini yang bikin beda dalam jangka panjang. Lanjutkan.`,
     });
   } else if (cur.net < prev.net && cur.net >= 0) {
     insights.push({
       key: "savings-down",
       tone: "warning",
       title: "Net saving bulan ini lebih rendah",
-      body: `Ada penurunan ~ Rp ${Math.abs(prev.net - cur.net).toLocaleString("id-ID")}. Cek kategori pengeluaran terbesar.`,
+      body: `Turun sekitar Rp ${Math.abs(prev.net - cur.net).toLocaleString("id-ID")} dari bulan lalu. Nggak apa-apa — coba intip kategori mana yang paling boros.`,
     });
   }
 
@@ -185,7 +185,7 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
       key: "learning-support",
       tone: "positive",
       title: "Pengeluaran belajar bulan ini mendukung goal Data Analyst",
-      body: `Rp ${learningSpend.toLocaleString("id-ID")} dialokasikan untuk skill—kontribusi langsung ke Career Readiness.`,
+      body: `Rp ${learningSpend.toLocaleString("id-ID")} kamu investasikan buat belajar bulan ini. Itu langsung nambah ke Career Readiness-mu.`,
     });
   }
 
@@ -199,8 +199,8 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
       insights.push({
         key: "sql-stale",
         tone: "warning",
-        title: `${sql.name} belum disentuh ${days} hari`,
-        body: "Jadwalkan satu sesi 30 menit hari ini agar momentum tidak hilang.",
+        title: `Sudah ${days} hari ${sql.name} nggak disentuh`,
+        body: "Nggak perlu lama — 30 menit hari ini cukup buat jaga momentumnya tetap hidup.",
       });
     }
   }
@@ -212,7 +212,7 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
       key: "portfolio-progress",
       tone: "positive",
       title: `${shipped} dari 5 portfolio project selesai`,
-      body: "Tambah case study berikutnya untuk memperkuat Career Readiness.",
+      body: "Tinggal beberapa langkah lagi. Satu case study lagi bakal bikin portofoliomu makin kuat.",
     });
   }
 
@@ -227,7 +227,7 @@ export function buildInsights({ transactions, goals, skills, reminders, portfoli
         key: "bpjs-soon",
         tone: "warning",
         title: `BPJS Kesehatan jatuh tempo dalam ${dueDay - day} hari`,
-        body: `Rp ${(bpjs.amount || 150_000).toLocaleString("id-ID")} · siapkan pembayaran.`,
+        body: `Rp ${(bpjs.amount || 150_000).toLocaleString("id-ID")} — siapin dari sekarang biar nggak dadakan.`,
       });
     }
   }
@@ -368,6 +368,92 @@ export function reflectionInsights(reflections, wins, goals, skills) {
   }
 
   return { insights, topWords, topGoal, topSkill, pending, in30dCount: in30d.length };
+}
+
+/* ---------- Weekly review (Life Compass ritual) ---------- */
+
+/** Aggregated-only view of reviews — mirrors reflectionInsights()'s privacy shape: counts and
+ * averages leave the browser for AI context, raw highlights/blockers/finance text never does. */
+export function reviewInsights(reviews) {
+  const now = Date.now();
+  const in30d = reviews.filter((r) => now - new Date(r.createdAt).getTime() <= 30 * 86400000);
+  const withEnergy = in30d.filter((r) => typeof r.energyLevel === "number");
+  const withStress = in30d.filter((r) => typeof r.stressLevel === "number");
+  const avg = (list, key) =>
+    list.length ? Number((list.reduce((a, r) => a + r[key], 0) / list.length).toFixed(1)) : null;
+
+  return {
+    in30dCount: in30d.length,
+    avgEnergyLevel30d: avg(withEnergy, "energyLevel"),
+    avgStressLevel30d: avg(withStress, "stressLevel"),
+    lastWeekOf: reviews[0]?.weekOf || null,
+  };
+}
+
+/** Momentum vs burnout signal from self-reported energy/stress trend + current commitment load. */
+export function momentumIndex(reviews, commitments) {
+  const active = commitments.filter((c) => !c.done).length;
+  const recent = reviews.filter((r) => typeof r.energyLevel === "number" && typeof r.stressLevel === "number").slice(0, 3);
+
+  if (recent.length < 2) {
+    return {
+      status: "unknown",
+      title: "Belum cukup data",
+      body: "Isi energi & stres di 2 ritual mingguan berturut-turut supaya polanya kelihatan.",
+    };
+  }
+
+  const avgEnergy = recent.reduce((a, r) => a + r.energyLevel, 0) / recent.length;
+  const avgStress = recent.reduce((a, r) => a + r.stressLevel, 0) / recent.length;
+
+  if (avgStress >= 4 && avgEnergy <= 2.5) {
+    return {
+      status: "burnout-risk",
+      title: "Tanda-tanda burnout risk",
+      body: `Stres rata-rata tinggi (${avgStress.toFixed(1)}/5) sementara energi rendah (${avgEnergy.toFixed(1)}/5), dan ${active} commitment masih terbuka. Waktunya kurangi beban, bukan tambah target.`,
+    };
+  }
+  if (avgEnergy >= 3.5 && avgStress <= 3) {
+    return {
+      status: "momentum",
+      title: "Kamu sedang dalam momentum",
+      body: `Energi stabil tinggi (${avgEnergy.toFixed(1)}/5) dengan stres terkendali. Ritme ini layak dipertahankan.`,
+    };
+  }
+  return {
+    status: "balanced",
+    title: "Ritme yang cukup seimbang",
+    body: `Energi ${avgEnergy.toFixed(1)}/5, stres ${avgStress.toFixed(1)}/5 — nggak ekstrem ke mana pun. Terus dipantau.`,
+  };
+}
+
+/** Rule-based opening paragraph for the ritual's "Hero's Journey" draft — user edits before saving. */
+export function weeklyNarrativeDraft({ reviews, wins, reflections, commitments, goals, skills }) {
+  const now = Date.now();
+  const winsIn7d = wins.filter((w) => now - new Date(w.createdAt).getTime() <= 7 * 86400000);
+  const reflectionsIn7d = reflections.filter((r) => now - new Date(r.createdAt).getTime() <= 7 * 86400000);
+  const doneCount = commitments.filter((c) => c.done).length;
+  const activeCount = commitments.filter((c) => !c.done).length;
+  const pattern = reflectionInsights(reflections, wins, goals, skills);
+
+  const parts = [];
+  parts.push(
+    winsIn7d.length > 0
+      ? `Minggu ini kamu mencatat ${winsIn7d.length} kemenangan kecil`
+      : `Minggu ini berjalan lebih senyap — belum ada win yang tercatat`
+  );
+  parts.push(
+    reflectionsIn7d.length > 0
+      ? ` dan menyempatkan diri berhenti sejenak ${reflectionsIn7d.length} kali untuk refleksi.`
+      : `.`
+  );
+  if (pattern.topGoal) {
+    parts.push(` Banyak perhatianmu tertuju ke "${pattern.topGoal.title}" — arah itu sedang serius kamu kejar.`);
+  }
+  parts.push(` ${doneCount} commitment sudah selesai, ${activeCount} masih berjalan.`);
+  parts.push(` Catat bagaimana rasanya, lalu pilih satu fokus kecil untuk minggu depan.`);
+
+  return parts.join("");
 }
 
 /* ---------- Goal progress helper ---------- */

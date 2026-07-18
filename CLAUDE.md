@@ -1,0 +1,590 @@
+# Claude Code Project Rules — Rafli Life Tracker
+
+Personal life operating system untuk Rafli Akbar (single user, Phase 1 released): Career, Finance, Goals, Skills, Reflection, Weekly Review dalam satu app yang tenang, hangat, editorial — bukan spreadsheet perusahaan.
+
+---
+
+# Source of Truth
+
+Selalu baca dokumen berikut sebelum implementasi fitur.
+
+- docs/PRD.md
+- docs/SRS.md
+
+PRD adalah sumber requirement.
+
+SRS adalah sumber spesifikasi teknis.
+
+Jika terjadi konflik:
+
+SRS > PRD > asumsi.
+
+Jangan pernah mengasumsikan requirement.
+
+---
+
+# AI Workflow (WAJIB)
+
+Untuk setiap task ikuti urutan berikut.
+
+1. Understand the project.
+2. Read PRD/SRS yang relevan.
+3. Search existing implementation.
+4. Explain implementation plan.
+5. Wait before making architectural changes.
+6. Implement minimal changes.
+7. Test.
+8. Review.
+9. Summarize changes.
+
+Jangan langsung coding.
+
+---
+
+# MCP & Skills Usage
+
+## Context7
+
+Always use Context7 before:
+
+- Next.js
+- React
+- Tailwind
+- Zustand
+- Framer Motion
+- Recharts
+- date-fns
+- Supabase
+- FastAPI
+- Python libraries
+- external npm packages
+
+Never rely on memory when Context7 documentation exists.
+
+Prefer official documentation.
+
+Never invent APIs.
+
+---
+
+## Ponytail
+
+Always use Ponytail principles.
+
+Prefer:
+
+- simple code
+- readable code
+- minimal abstraction
+- composition
+- reusable utilities
+
+Avoid:
+
+- unnecessary patterns
+- premature optimization
+- deep inheritance
+- excessive generic helpers
+- over engineering
+
+Keep diffs as small as possible.
+
+Never rewrite working code without strong justification.
+
+---
+
+## Motion MCP
+
+Motion is available.
+
+Use Motion when:
+
+- planning implementation
+- creating roadmap
+- breaking large features
+- estimating implementation time
+- prioritizing work
+- managing backlog
+- scheduling future work
+
+When a feature is estimated longer than 2 hours:
+
+Offer creating Motion tasks.
+
+Break into subtasks.
+
+Estimate duration.
+
+When feature completed:
+
+Offer marking Motion task as completed.
+
+Never use Motion for trivial fixes.
+
+---
+
+## Playwright
+
+Always run Playwright after frontend changes.
+
+Verify:
+
+- no runtime errors
+- responsive layout
+- navigation
+- keyboard navigation
+- accessibility
+- console errors
+- layout regressions
+
+Take screenshots when useful.
+
+---
+
+## Frontend Design Skill
+
+Use frontend-design skill when:
+
+- new pages
+- dashboards
+- layouts
+- cards
+- typography
+- spacing
+- responsive improvements
+- accessibility improvements
+
+Maintain editorial feeling.
+
+Never create corporate dashboard appearance.
+
+---
+
+## Webapp Testing Skill
+
+When implementing features:
+
+Verify:
+
+- loading state
+- empty state
+- error state
+- success state
+
+Test realistic user flows.
+
+---
+
+# Product Context
+
+## Modules
+
+- Dashboard
+- Goals
+- Career
+- Finance
+- Skills
+- Reflection
+- Weekly Review
+
+Do not change navigation structure.
+
+---
+
+## Language
+
+UI must use Bahasa Indonesia.
+
+Only use English when common:
+
+Dashboard
+
+Goals
+
+Career
+
+Quick Add
+
+Settings
+
+---
+
+## Currency
+
+Always format IDR using
+
+Intl.NumberFormat("id-ID")
+
+Never hardcode formatting.
+
+---
+
+## Persistence
+
+Current persistence:
+
+localStorage
+
+Offline-first.
+
+No authentication.
+
+Schema already contains userId.
+
+Never remove userId.
+
+Future migration:
+
+Supabase.
+
+---
+
+## AI
+
+Dashboard/rule-based insights (unchanged): rule-based only, via `buildInsights()` and the other pure selectors in `insights.js`. Never replace these with LLM calls.
+
+**Chat assistant (built, ahead of the original roadmap):** `/ai` — a free-tier-only OpenRouter streaming Q&A assistant over Finance/Goals/Career/Skills/Reflection/Weekly Review data. Read-only, no write capability. Full status, architecture, and privacy verification: `docs/features/ai-assistant.md`.
+
+- Never call a paid OpenRouter model — free-tier only, no exceptions.
+- `frontend/src/lib/ai/openrouter.js` and the OpenRouter/model env vars are server-only — never import into a `"use client"` file, never expose to the browser.
+- Raw reflection/letter body text must never be assembled into outbound LLM context, regardless of intent — only aggregated `reflectionInsights()` output. This is verified at the network layer, not just by code review — see the doc above before changing `contextBuilder.js`.
+
+---
+
+## Mobile First
+
+Primary design width:
+
+390px
+
+Support:
+
+390px → 2560px
+
+Sidebar:
+
+Hidden below lg.
+
+Sticky above lg.
+
+---
+
+## Privacy
+
+Reflection default:
+
+isPrivate = true
+
+Never expose private reflections.
+
+---
+
+# Design System
+
+## Colors
+
+Light
+
+Paper
+
+#f5f2ea
+
+Card
+
+#fffdf8
+
+Ink
+
+#1d2b24
+
+Muted
+
+#718078
+
+Forest
+
+#315d48
+
+Dark
+
+Night
+
+#0f1613
+
+Night Card
+
+#161f1a
+
+Ink
+
+#e6ebe1
+
+Muted
+
+#8a9a90
+
+Accent
+
+#a8c845
+
+Shared
+
+Lime
+
+#d5eb7e
+
+Terra
+
+#eb9b63
+
+Never introduce new primary colors.
+
+---
+
+## Typography
+
+Heading
+
+Playfair Display
+
+Reflection
+
+Instrument Serif Italic
+
+Interface
+
+DM Sans
+
+Data
+
+DM Mono
+
+---
+
+## Motion
+
+Use Framer Motion.
+
+Animations:
+
+- stagger reveal
+- fade
+- growing line
+- ring animation
+
+Always respect
+
+prefers-reduced-motion.
+
+---
+
+## Accessibility
+
+WCAG AA.
+
+Minimum contrast:
+
+4.5
+
+Touch target:
+
+44x44
+
+Keyboard:
+
+Tab
+
+Shift Tab
+
+Enter
+
+Esc
+
+Focus-visible required.
+
+---
+
+# Architecture
+
+Stack
+
+- Next.js 14
+- React 18
+- Tailwind 3
+- Zustand
+- Framer Motion
+- Recharts
+- Lucide
+- cmdk
+- date-fns
+- nanoid
+- FastAPI
+- Supabase ready
+
+---
+
+## State Management
+
+Single source of truth:
+
+Zustand.
+
+No duplicated state.
+
+Selectors must stay pure.
+
+---
+
+## Autosave
+
+Debounce:
+
+800ms
+
+Reflection:
+
+350ms
+
+Never remove autosave.
+
+---
+
+## Validation
+
+Follow docs/SRS.md.
+
+Never duplicate validation rules.
+
+---
+
+## Cross Module Features
+
+Must never break:
+
+- Command Palette
+- Quick Add
+- Notifications
+- Theme Toggle
+- Autosave
+- CSV Export
+
+---
+
+# Coding Standards
+
+TypeScript strict.
+
+Prefer:
+
+small components.
+
+Maximum:
+
+300 lines/component
+
+Extract reusable logic.
+
+Avoid duplicated code.
+
+Avoid unnecessary dependencies.
+
+Prefer server components where appropriate.
+
+Keep client components minimal.
+
+---
+
+# Git
+
+Never commit automatically.
+
+Never push automatically.
+
+Generate commit message.
+
+Explain breaking changes.
+
+---
+
+# Backend
+
+Prefer Pythonic solutions.
+
+RESTful APIs.
+
+Backward compatible.
+
+Never break existing endpoints.
+
+---
+
+# Database
+
+Never drop tables.
+
+Never delete user data.
+
+Generate safe migrations.
+
+Enable RLS.
+
+Owner-only access.
+
+Secrets only on server.
+
+Never expose keys.
+
+---
+
+# Paused Features
+
+## WhatsApp → Finance quick-add
+
+Status: paused, Phase 2. Code, migrations, and webhook are fully built and tested — not missing implementation, just waiting on a dedicated WhatsApp Business number (Rafli won't use his personal number).
+
+Do not resume implementation work on this without being asked. Do not treat the commented-out `WHATSAPP_*` vars in `frontend/.env.local` as needing to be filled in.
+
+Full status, what's implemented, what's missing, exact resume steps: `docs/features/whatsapp-integration.md`.
+
+---
+
+# Definition of Done
+
+Before finishing:
+
+✓ Type check passes
+
+✓ Lint passes
+
+✓ Playwright passes
+
+✓ Responsive verified
+
+✓ Accessibility verified
+
+✓ No console errors
+
+✓ No duplicated logic
+
+✓ Existing features still work
+
+✓ Summary provided
+
+---
+
+## Documentation Workflow
+
+Additional project knowledge is stored under `.claude`.
+
+- `.claude/context` contains long-term project knowledge and philosophy.
+- `.claude/prompts` contains implementation strategies for recurring engineering tasks.
+- `.claude/checklists` contains verification checklists.
+
+For every task beyond a trivial change:
+
+1. Determine which documents under `.claude` are relevant.
+2. Read only those relevant documents (do not read everything).
+3. Explain the implementation plan before coding.
+4. Implement with minimal, maintainable changes.
+5. Validate the result using the relevant checklist.
+6. Summarize the changes and generate a commit message (do not commit automatically).

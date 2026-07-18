@@ -10,11 +10,13 @@ import {
   TrendingUp,
   Wallet,
   Sparkles,
+  Compass,
   BookOpen,
   Plus,
   Sun,
   Moon,
   DollarSign,
+  Bot,
 } from "lucide-react";
 
 const PAGES = [
@@ -23,7 +25,8 @@ const PAGES = [
   { href: "/career", label: "Career", icon: TrendingUp, keywords: "karier journey milestone" },
   { href: "/finance", label: "Finance", icon: Wallet, keywords: "uang tabungan pengeluaran" },
   { href: "/skills", label: "Skills", icon: Sparkles, keywords: "belajar sql python data" },
-  { href: "/review", label: "Weekly Review", icon: BookOpen, keywords: "refleksi mingguan" },
+  { href: "/compass", label: "Life Compass", icon: Compass, keywords: "refleksi mingguan reflection weekly review ritual" },
+  { href: "/ai", label: "Asisten AI", icon: Bot, keywords: "chat tanya assistant ai" },
 ];
 
 export default function CommandPalette() {
@@ -66,7 +69,7 @@ export default function CommandPalette() {
           </div>
           <Command.List className="max-h-[420px] overflow-auto scrollbar-thin p-2">
             <Command.Empty className="px-4 py-6 text-sm text-ink-muted">
-              Tidak ada hasil.
+              Nggak ketemu. Coba kata lain?
             </Command.Empty>
 
             <Command.Group heading="Navigasi" className="[&_[cmdk-group-heading]]:eyebrow [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1">
