@@ -83,21 +83,47 @@ export function budgetWeeklyBreakdown(budgets, transactions, mk = currentMonthKe
           return day >= w.startDay && day <= w.endDay;
         })
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      const allocated = Math.round((b.limit * daysInWeek) / daysInMonth);
-      return { category: b.category, budgetId: b.id, allocated, spent };
+      // A user-set weekly amount overrides the auto-prorated default —
+      // "budgeting shouldn't feel rigid" was the explicit ask.
+      const override = b.weeklyOverrides?.[w.key];
+      const prorated = Math.round((b.limit * daysInWeek) / daysInMonth);
+      const allocated = override != null ? override : prorated;
+      return { category: b.category, budgetId: b.id, allocated, spent, isOverride: override != null };
     });
     return { ...w, categories };
   });
 }
 
+/**
+ * A quantitative goal's metric.current can either be a plain hand-edited
+ * number, or — if `linkedCategory` is set — auto-track a Finance expense
+ * category: metric.current becomes a baseline, and every matching
+ * transaction adds on top. Generalizes what used to be a goal-savings-ladder
+ * special case so any finance goal can opt in (Goals <> Finance sync).
+ */
+export function linkedGoalCurrent(goal, transactions) {
+  if (!goal.linkedCategory) return goal.metric?.current ?? 0;
+  const baseline = goal.metric?.current ?? 0;
+  const tracked = transactions
+    .filter((t) => t.type === "expense" && t.category === goal.linkedCategory)
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  return baseline + tracked;
+}
+
+/**
+ * Kuantitatif = has a hard numeric target (metric) or a weighted breakdown
+ * (contributions); kualitatif = concept/self-development goal tracked by a
+ * hand-set `progress` percentage. Derived, not stored — no schema migration
+ * needed, and it can never drift out of sync with the fields that back it.
+ */
+export function goalKind(goal) {
+  return goal.metric || goal.contributions ? "quantitative" : "qualitative";
+}
+
 export function savingsProgress(goals, transactions) {
   const savingsGoal = goals.find((g) => g.id === "goal-savings-ladder");
   if (!savingsGoal) return null;
-  const totalSaved = transactions
-    .filter((t) => t.type === "expense" && t.category === "saving")
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  const baseline = savingsGoal.metric?.current ?? 0;
-  const current = baseline + totalSaved;
+  const current = linkedGoalCurrent(savingsGoal, transactions);
   const target = savingsGoal.metric?.target ?? 100_000_000;
   const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
   // Which ladder step are we on?
@@ -797,9 +823,8 @@ export function computeGoalProgress(goal, ctx) {
     return ctx.savings.pct;
   }
   if (goal.metric) {
-    const pct = Math.round(
-      ((goal.metric.current || 0) / (goal.metric.target || 1)) * 100
-    );
+    const current = linkedGoalCurrent(goal, ctx?.transactions ?? []);
+    const pct = Math.round((current / (goal.metric.target || 1)) * 100);
     return Math.max(0, Math.min(100, pct));
   }
   if (goal.contributions) {

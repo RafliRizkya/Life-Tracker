@@ -59,7 +59,31 @@ function saveToStorage(state) {
   if (typeof window === "undefined") return;
   // Let quota/private-mode errors propagate — persist() surfaces them,
   // swallowing here silently loses the user's just-made change.
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // savedAt lets hydrate() decide whether this device's copy or Supabase's
+  // copy is newer when reconciling across devices.
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, savedAt: nowISO() }));
+}
+
+/** Debounced, best-effort push of the full state blob to Supabase — never blocks a mutation. */
+let pushTimer = null;
+function schedulePush(getState) {
+  if (typeof window === "undefined") return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => pushToSupabase(persistableSlice(getState())), 800);
+}
+
+async function pushToSupabase(state) {
+  if (!isSupabaseConfigured()) return;
+  try {
+    await fetch("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+  } catch {
+    // offline or Supabase unreachable — localStorage already has the change,
+    // next mutation (or next mount's hydrate) will retry the push.
+  }
 }
 
 /**
@@ -104,7 +128,7 @@ export const useLifeStore = create((set, get) => ({
   quickAddType: "commitment",
   notifDrawerOpen: false,
   // ---- lifecycle ----
-  hydrate: () => {
+  hydrate: async () => {
     const stored = loadFromStorage();
     if (stored) {
       // Backfill new fields on state saved by older versions.
@@ -119,11 +143,44 @@ export const useLifeStore = create((set, get) => ({
       set({ hydrated: true });
       get().persist();
     }
+
+    // Reconcile with Supabase in the background — this device renders from
+    // its local cache immediately above, then upgrades if another device's
+    // copy is newer. Never blocks first paint (offline-first).
+    if (!isSupabaseConfigured()) return;
+    try {
+      const res = await fetch("/api/sync");
+      if (!res.ok) return;
+      const { state: remote, updatedAt } = await res.json();
+      if (!remote) {
+        // Nothing synced yet for this account — push what we have.
+        pushToSupabase(persistableSlice(get()));
+        return;
+      }
+      const localSavedAt = stored?.savedAt;
+      if (!localSavedAt || (updatedAt && new Date(updatedAt) > new Date(localSavedAt))) {
+        set({
+          ...remote,
+          reflections: remote.reflections ?? initial.reflections,
+          wins: remote.wins ?? initial.wins,
+          letters: remote.letters ?? initial.letters,
+          hydrated: true,
+        });
+        saveToStorage(persistableSlice(get()));
+      } else {
+        // This device's copy is newer or equal — make sure Supabase catches up
+        // (covers the case where an earlier push failed while offline).
+        pushToSupabase(persistableSlice(get()));
+      }
+    } catch {
+      // Offline or Supabase unreachable — local state stands, retry next mount.
+    }
   },
   persist: () => {
     set({ saveStatus: "saving" });
     try {
       saveToStorage(persistableSlice(get()));
+      schedulePush(get);
       // simulate small delay so users see the state
       setTimeout(() => {
         if (get().saveStatus === "saving") set({ saveStatus: "saved" });
@@ -157,6 +214,7 @@ export const useLifeStore = create((set, get) => ({
     const fresh = buildInitialState();
     set({ ...fresh, hydrated: true });
     saveToStorage(persistableSlice(fresh));
+    pushToSupabase(persistableSlice(fresh));
   },
 
   // ---- UI toggles ----
@@ -457,6 +515,26 @@ export const useLifeStore = create((set, get) => ({
   },
   removeBudget: (id) => {
     set({ budgets: get().budgets.filter((b) => b.id !== id) });
+    get().persist();
+  },
+  setWeeklyBudgetOverride: (budgetId, weekKey, amount) => {
+    set({
+      budgets: get().budgets.map((b) =>
+        b.id === budgetId
+          ? { ...b, weeklyOverrides: { ...b.weeklyOverrides, [weekKey]: amount } }
+          : b
+      ),
+    });
+    get().persist();
+  },
+  clearWeeklyBudgetOverride: (budgetId, weekKey) => {
+    set({
+      budgets: get().budgets.map((b) => {
+        if (b.id !== budgetId || !b.weeklyOverrides) return b;
+        const { [weekKey]: _removed, ...rest } = b.weeklyOverrides;
+        return { ...b, weeklyOverrides: rest };
+      }),
+    });
     get().persist();
   },
 

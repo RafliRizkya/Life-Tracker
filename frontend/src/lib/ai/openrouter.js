@@ -113,3 +113,39 @@ export async function streamChatCompletion({ messages }) {
 
   throw new Error("all_models_failed");
 }
+
+/**
+ * Same model fallback chain as streamChatCompletion(), but buffers the SSE
+ * stream into one string — for callers that need a complete structured
+ * answer (e.g. JSON) rather than token-by-token UI streaming. Parses the
+ * same OpenAI-compatible `data: {...}` chunks the /ai chat client parses,
+ * kept in sync with that logic on purpose.
+ */
+export async function getCompletionText({ messages }) {
+  const { stream } = await streamChatCompletion({ messages });
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop();
+    for (const evt of events) {
+      const line = evt.trim();
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(data);
+        text += parsed.choices?.[0]?.delta?.content || "";
+      } catch {
+        /* skip malformed chunk */
+      }
+    }
+  }
+  return text;
+}

@@ -8,6 +8,7 @@ import { SKILL_CATEGORIES } from "@/lib/seed";
 import { skillMomentum } from "@/lib/insights";
 import { formatDateID } from "@/lib/format";
 import { Plus, Zap, Trash2, ExternalLink, Sparkles, ArrowUpRight, Minus } from "lucide-react";
+import ActionPlanPanel from "@/components/ActionPlanPanel";
 import clsx from "clsx";
 
 export default function SkillsPage() {
@@ -238,6 +239,21 @@ function SkillDetail({ skill, onClose, onUpdate, onRemove }) {
             <input type="checkbox" checked={!!skill.relatedToRole} onChange={(e) => onUpdate({ relatedToRole: e.target.checked })} />
             <span>Skill ini terhubung ke target Data Analyst</span>
           </label>
+
+          <ActionPlanPanel
+            title={skill.name}
+            area={SKILL_CATEGORIES.find((c) => c.key === skill.category)?.label}
+            kind="quantitative"
+            context="skill"
+            applyLabel="Tambahkan ke learning plan"
+            onApply={(selectedSteps) => {
+              const formatted = selectedSteps
+                .map((s, i) => `${i + 1}. ${s.title}${s.note ? ` — ${s.note}` : ""}`)
+                .join("\n");
+              onUpdate({ plan: skill.plan ? `${skill.plan}\n\n${formatted}` : formatted });
+            }}
+          />
+
           <button onClick={onRemove} className="text-[12px] text-terracotta hover:underline inline-flex items-center gap-1" data-testid="remove-skill-btn">
             <Trash2 className="h-3 w-3" /> Hapus skill
           </button>

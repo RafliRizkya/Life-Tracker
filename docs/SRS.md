@@ -181,13 +181,13 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
   - `status === "completed"` → 100%
   - `id === "goal-data-analyst"` → `careerReadiness.overall`
   - `id === "goal-savings-ladder"` → `savingsProgress.pct`
-  - Has `metric` → `(current / target) × 100`
+  - Has `metric` → `(linkedGoalCurrent(goal, transactions) / target) × 100` (2026-07-19: generalized from a raw `metric.current` read — see FR-GOAL-10)
   - Has `contributions` → weighted sum
   - Fallback → `goal.progress`
 
 #### FR-GOAL-06: Add Goal
 - **Via**: Quick Add modal, type "goal"
-- **Fields**: title (required), area, priority, why, target date
+- **Fields**: title (required), area, priority, why, target date, jenis goal (kuantitatif/kualitatif — 2026-07-19), jika kuantitatif: current/target/unit + opsional `linkedCategory` (finance-area only)
 
 #### FR-GOAL-07: Archive Goal
 - **Action**: Set `status: "archived"`
@@ -202,6 +202,16 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Evidence window**: 14 hari (`EVIDENCE_WINDOW_MS`). Per area: skills → `lastPracticedAt`; career → milestone `createdAt`; finance → transaksi tercatat atau goal milestone `achievedAt`
 - **States**: `evidenced` / `unproven` / `pending` (goal lebih muda dari window — bukan sinyal negatif) / `exempt` (area growth/business, atau status bukan in_progress)
 - **Surfacing**: chip "belum ada bukti" di kartu goal unproven; stat "on track" mensyaratkan progress ≥ 40 **dan** bukan unproven. Kontrol status manual user tidak diubah — ini overlay komputasi
+
+#### FR-GOAL-10: Kuantitatif/Kualitatif Categorization + Finance Sync (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
+- **`goalKind(goal)`**: derived, not stored. Returns `"quantitative"` if `goal.metric` or `goal.contributions` is present, else `"qualitative"`. Shown as a chip on every goal card.
+- **`linkedGoalCurrent(goal, transactions)`**: if `goal.linkedCategory` is set (an expense category key), current value = `metric.current` (treated as baseline) + sum of all matching-category expense transactions. Generalizes what was previously a `goal.id === "goal-savings-ladder"` special case — that goal now sets `linkedCategory: "saving"` explicitly instead of being ID-matched for its number tracking (its milestone-ladder *UI* is still ID-routed, that part is genuinely goal-specific).
+- **Add Goal form**: quantitative + finance-area goals get an optional "Sinkron otomatis dengan kategori Finance" dropdown.
+
+#### FR-GOAL-11: AI Action Plan Generator (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
+- **Trigger**: "Generate action plan dengan AI" button in the Goal detail drawer (also present in Skill detail — see FR-SKILL).
+- **Flow**: `POST /api/ai/action-plan` with `{title, area, why, kind, context:"goal"}` → 3–8 suggested steps shown with checkboxes → **suggest-only, nothing saved until the user clicks Apply** → checked steps become real `addCommitment()` calls.
+- **Rate-limited**: shares the daily AI request cap with `/ai` chat and the financial planner (`AI_MAX_REQUESTS_PER_DAY`, one counter total).
 
 ---
 
@@ -264,7 +274,7 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 
 #### FR-FIN-05: Budget Management
 - **Display**: 3-level drill-down accordion — Month → Week (W1–W4, contiguous day-range buckets) → Category. Month row shows category count; week rows show aggregate spent/allocated; category rows show progress bar + over-budget warning (terracotta).
-- **Week allocation**: Derived, not stored — each category's monthly `limit` is prorated across weeks by day-count share (`budgetWeeklyBreakdown()` in `insights.js`). No schema change; the `budgets` entity stays month-level (§5.7).
+- **Week allocation**: Each category's monthly `limit` is prorated across weeks by day-count share by default (`budgetWeeklyBreakdown()` in `insights.js`). **2026-07-19**: a week's allocation can be overridden by hand — `budgets.weeklyOverrides: {W1?: number, ...}` (optional, additive to §5.7's schema). The week/category row's amount is click-to-edit (`WeeklyAllocationEditor`); clearing the value falls back to auto-proration. `setWeeklyBudgetOverride`/`clearWeeklyBudgetOverride` store actions.
 - **Create**: Inline form (category dropdown, limit input), unchanged — still sets a month-level limit
 - **Delete**: Trash icon per category row (any week), removes the month-level budget via its `budgetId`
 - **Computation**: Match transactions by category + current month + day-of-month within the week's range
@@ -284,6 +294,16 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Format**: CSV with columns: id, date, type, category, title, amount, notes
 - **Filename**: `rafli-transactions-YYYY-MM-DD.csv`
 - **Method**: Blob → URL.createObjectURL → trigger download
+
+#### FR-FIN-09: Free-text Transaction Entry (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
+- **Input**: Free-text field in the transaction Quick Add form (e.g. "beli kopi 4000 cash", "gaji 5 juta")
+- **Parser**: `parseMessage()` from `frontend/src/lib/whatsapp/parser.js` — rule-based, no AI/LLM, reused as-is from the paused WhatsApp integration. Amount shorthand (`ribu`/`rb`/`k`, `juta`/`jt`), income keywords (gaji/bonus/terima/dapat/masuk/freelance) vs. everything else defaulting to expense, category inference by keyword match.
+- **Flow**: "Parse" button pre-fills the existing structured fields (type/category/amount/title/notes) — **does not save directly**, user reviews/edits before submitting, same as manual entry.
+
+#### FR-FIN-10: AI Financial Planner (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
+- **Trigger**: "Generate" button on the Finance page's "Rencana keuangan" card.
+- **Flow**: Client builds a privacy-safe context via the `/ai` chat's existing `buildContext()` (finance + goals modules only) → `POST /api/ai/financial-plan` → `{summary, targetSavingRate, tips, categoryAdvice}` → **suggest-only**, each `categoryAdvice` entry has a "Terapkan" button that calls the existing `upsertBudget()`, nothing is saved automatically.
+- **Not persisted**: regenerated on demand rather than cached, since a stale plan showing outdated numbers as current fact is worse here than the cost of an extra AI call.
 
 ---
 
@@ -310,6 +330,10 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 #### FR-SKILL-05: Skill Detail Drawer
 - **Editable**: Level (±), Target level (1–5), Learning plan (textarea), Resource URL, Related to role (checkbox)
 - **Delete**: "Hapus skill" link
+
+#### FR-SKILL-05b: AI Action Plan Generator (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
+- Same `ActionPlanPanel` component and `/api/ai/action-plan` route as FR-GOAL-11 (`context: "skill"`).
+- **Apply**: checked steps are formatted as a numbered list and appended to the skill's existing `plan` field (not replaced) via `onUpdate({ plan })`.
 
 #### FR-SKILL-06: Recommendation Banner
 - **Output**: Static recommendation card "Perdalam SQL joins, lalu jadikan portfolio evidence"
@@ -532,10 +556,13 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | status | string | ✅ | planned / in_progress / completed / archived |
 | targetDate | string | | ISO date |
 | metric | object | | { current, target, unit } |
+| linkedCategory | string | | 2026-07-19. Expense category key (TX_CATEGORIES) — when set, live `current` = `metric.current` (baseline) + sum of matching expense transactions, via `linkedGoalCurrent()`. Only meaningful alongside `metric` |
 | contributions | array | | [{key, label, weight, value}] |
 | milestones | array | | [{id, label, target, achieved, achievedAt}] |
 | progress | number | | 0–100 |
 | notes | string | | Free text |
+
+`goalKind(goal)` (2026-07-19, derived — not a stored field): `"quantitative"` if `metric` or `contributions` present, else `"qualitative"`.
 
 ### 5.3 Career Milestone
 | Field | Type | Required | Description |
@@ -607,6 +634,7 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | category | string | ✅ | Expense category |
 | limit | number | ✅ | Budget limit in IDR |
 | month | string | ✅ | "YYYY-MM" format |
+| weeklyOverrides | object | | 2026-07-19. `{W1?, W2?, W3?, W4?: number}` — hand-set weekly amount, overrides the auto-prorated default in `budgetWeeklyBreakdown()` when present for that week |
 
 ### 5.8 Reminder
 | Field | Type | Required | Description |
@@ -721,6 +749,12 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 - `category`: must exist in TX_CATEGORIES.expense
 - `limit`: numeric, > 0
 - `month`: valid "YYYY-MM" format
+- `weeklyOverrides[Wn]`: numeric, ≥ 0 when set (2026-07-19)
+
+### 6.6 AI-generated content (action plans, financial plans)
+- Never trusted as fact — `extractJson()` returns `null` on any parse failure, callers surface a "try again" error, never a partial/guessed structure
+- Step/tip/category strings are length-capped server-side (title ≤ 80 chars, note/reason ≤ 160 chars) before reaching the client
+- `categoryAdvice[].category` is not validated against TX_CATEGORIES server-side — the client only renders a "Terapkan" button per entry the model returned, and `upsertBudget()` accepts any category string (matches existing manual-add behavior, no new validation gap)
 
 ---
 
@@ -739,6 +773,10 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | FR-CROSS-01 | CommandPalette | openPalette, closePalette | components/CommandPalette.jsx |
 | FR-CROSS-02 | QuickAddModal | (per type) | components/QuickAddModal.jsx |
 | FR-CROSS-03 | NotificationsDrawer | markNotificationRead, clearNotifications | components/NotificationsDrawer.jsx |
+| FR-GOAL-10 | Goal card kind chip, Quick Add kind/linkedCategory fields | addGoal, goalKind, linkedGoalCurrent | goals/page.js |
+| FR-GOAL-11 / FR-SKILL-05b | ActionPlanPanel | addCommitment (goal) / updateSkill via onUpdate (skill) | components/ActionPlanPanel.jsx |
+| FR-FIN-09 | Quick Add free-text field | parseMessage (no store action — pre-fills form) | components/QuickAddModal.jsx |
+| FR-FIN-10 | FinancialPlanCard | upsertBudget | finance/page.js |
 
 ---
 

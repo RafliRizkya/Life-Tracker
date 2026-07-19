@@ -222,19 +222,17 @@ Never hardcode formatting.
 
 Current persistence:
 
-localStorage
+localStorage, synced to Supabase for cross-device access (whole-state JSONB blob, one row per user — not the per-table relational schema in `supabase/migrations/0001_initial_schema.sql`, which needs real auth to be reachable from the browser and isn't wired up). See `docs/features/supabase-sync.md` for the full design and why.
 
-Offline-first.
+Offline-first. Local read/render always happens first; Supabase reconciles in the background and never blocks first paint.
 
-No authentication.
+No authentication. Single hardcoded user (`rafli-akbar`).
 
 Schema already contains userId.
 
 Never remove userId.
 
-Future migration:
-
-Supabase.
+Server-side sync only: all Supabase reads/writes go through `frontend/src/app/api/sync` using the service-role key. Never call Supabase directly from a `"use client"` file for this data — the anon-key client cannot reach these tables anyway (RLS denies it with no auth session).
 
 ---
 
@@ -244,9 +242,12 @@ Dashboard/rule-based insights (unchanged): rule-based only, via `buildInsights()
 
 **Chat assistant (built, ahead of the original roadmap):** `/ai` — a free-tier-only OpenRouter streaming Q&A assistant over Finance/Goals/Career/Skills/Life Compass data. Read-only, no write capability. Full status, architecture, and privacy verification: `docs/features/ai-assistant.md`.
 
+**AI action-plan generator (Goals & Skills)** and **AI financial planner (Finance)**: two additional AI surfaces, both **suggest-only — the AI itself never writes to the store.** Each returns a suggestion (step list / budget plan) that the UI shows for review; saving only happens when the user clicks an explicit "apply" action, which then runs a normal existing store action (`addCommitment`, `onUpdate({ plan })`, `upsertBudget`) — the exact same write path a manual add already uses. This preserves the chat assistant's "AI never writes" boundary while still letting these two surfaces produce actionable output. Full detail: `docs/features/ai-action-plan-and-financial-planner.md`.
+
 - Never call a paid OpenRouter model — free-tier only, no exceptions.
 - `frontend/src/lib/ai/openrouter.js` and the OpenRouter/model env vars are server-only — never import into a `"use client"` file, never expose to the browser.
 - Raw reflection/letter/weekly-review body text must never be assembled into outbound LLM context, regardless of intent — only aggregated `reflectionInsights()`/`reviewInsights()` output. This is verified at the network layer, not just by code review — see the doc above before changing `contextBuilder.js`.
+- Any new AI-generation surface must stay suggest-only unless explicitly asked to write directly — this was a deliberate decision (see `docs/PROJECT_MEMORY.md` 2026-07-19 entry), not a default to silently change.
 
 ---
 

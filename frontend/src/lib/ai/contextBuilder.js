@@ -20,6 +20,7 @@ import {
   reflectionInsights,
   reviewInsights,
   computeGoalProgress,
+  goalKind,
 } from "../insights";
 import { formatIDR, formatDateID, currentMonthKey } from "../format";
 
@@ -107,6 +108,7 @@ function buildGoals(store, ctx) {
     .map((g) => ({
       title: g.title,
       area: g.area,
+      kind: goalKind(g),
       status: g.status,
       priority: g.priority,
       why: g.why,
@@ -201,7 +203,7 @@ export function buildContext(store, intent) {
     store.careerMilestones || []
   );
   const savings = savingsProgress(store.goals || [], store.transactions || []);
-  const ctx = { readiness, savings };
+  const ctx = { readiness, savings, transactions: store.transactions || [] };
 
   const payload = {};
   for (const key of modules) {

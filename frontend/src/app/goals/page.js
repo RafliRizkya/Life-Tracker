@@ -7,9 +7,10 @@ import { Card, Progress, EmptyState } from "@/components/ui";
 import {
   Plus, ArrowUpRight, Archive, Target, ChevronRight, X, CheckCircle2,
 } from "lucide-react";
-import { LIFE_AREAS } from "@/lib/seed";
-import { computeGoalProgress, careerReadiness, savingsProgress, goalEvidenceStatus } from "@/lib/insights";
+import { LIFE_AREAS, TX_CATEGORIES } from "@/lib/seed";
+import { computeGoalProgress, careerReadiness, savingsProgress, goalEvidenceStatus, goalKind, linkedGoalCurrent } from "@/lib/insights";
 import { formatIDR, formatDateID } from "@/lib/format";
+import ActionPlanPanel from "@/components/ActionPlanPanel";
 import clsx from "clsx";
 
 export default function GoalsPage() {
@@ -23,7 +24,7 @@ export default function GoalsPage() {
 
   const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
   const savings = savingsProgress(goals, transactions);
-  const ctx = { readiness, savings };
+  const ctx = { readiness, savings, transactions };
 
   const filtered = goals
     .filter((g) => g.status !== "archived")
@@ -106,6 +107,12 @@ export default function GoalsPage() {
                   {area?.label || g.area}
                 </span>
                 <span className="flex items-center gap-1.5">
+                  <span
+                    className="chip-muted chip"
+                    title={goalKind(g) === "quantitative" ? "Target angka pasti" : "Target konseptual, dinilai manual"}
+                  >
+                    {goalKind(g) === "quantitative" ? "Kuantitatif" : "Kualitatif"}
+                  </span>
                   {evidence.state === "unproven" && (
                     <span className="chip-muted chip" data-testid={`unproven-${g.id}`} title="Tidak ada aktivitas terkait di area ini dalam 14 hari terakhir">
                       belum ada bukti
@@ -118,8 +125,8 @@ export default function GoalsPage() {
               {g.metric && (
                 <div className="mt-2 text-[11.5px] text-ink-muted">
                   {g.metric.unit === "IDR"
-                    ? `${formatIDR(g.metric.current)} · target ${formatIDR(g.metric.target)}`
-                    : `${g.metric.current} dari ${g.metric.target} ${g.metric.unit}`}
+                    ? `${formatIDR(linkedGoalCurrent(g, transactions))} · target ${formatIDR(g.metric.target)}`
+                    : `${linkedGoalCurrent(g, transactions)} dari ${g.metric.target} ${g.metric.unit}`}
                 </div>
               )}
               <div className="mt-6 flex items-center gap-3">
@@ -200,6 +207,7 @@ function FilterPill({ active, children, onClick }) {
 }
 
 function GoalDetail({ goal, ctx, onClose, onArchive, onSavingsToggle, onUpdate }) {
+  const addCommitment = useLifeStore((s) => s.addCommitment);
   const pct = computeGoalProgress(goal, ctx);
   const area = LIFE_AREAS.find((a) => a.key === goal.area);
   const isSavings = goal.id === "goal-savings-ladder";
@@ -247,12 +255,17 @@ function GoalDetail({ goal, ctx, onClose, onArchive, onSavingsToggle, onUpdate }
               <div className="eyebrow">Metric</div>
               <div className="mt-1 flex items-baseline gap-2">
                 <div className="h-display text-[22px]">
-                  {goal.metric.unit === "IDR" ? formatIDR(goal.metric.current) : goal.metric.current}
+                  {goal.metric.unit === "IDR" ? formatIDR(linkedGoalCurrent(goal, ctx?.transactions ?? [])) : goal.metric.current}
                 </div>
                 <div className="text-[11.5px] text-ink-muted">
                   dari {goal.metric.unit === "IDR" ? formatIDR(goal.metric.target) : goal.metric.target}
                 </div>
               </div>
+              {goal.linkedCategory && (
+                <div className="mt-2 text-[11px] text-forest-500 dark:text-lime">
+                  Tersinkron otomatis dari transaksi kategori &ldquo;{TX_CATEGORIES.expense.find(c => c.key === goal.linkedCategory)?.label || goal.linkedCategory}&rdquo;
+                </div>
+              )}
             </div>
           )}
 
@@ -314,6 +327,24 @@ function GoalDetail({ goal, ctx, onClose, onArchive, onSavingsToggle, onUpdate }
               <p className="text-[13px] leading-relaxed text-ink-soft">{goal.notes}</p>
             </div>
           )}
+
+          <ActionPlanPanel
+            title={goal.title}
+            area={area?.label}
+            why={goal.why}
+            kind={goalKind(goal)}
+            context="goal"
+            applyLabel="Tambahkan sebagai commitment"
+            onApply={(selectedSteps) => {
+              for (const step of selectedSteps) {
+                addCommitment({
+                  title: step.title,
+                  area: goal.area,
+                  dueDate: goal.targetDate || new Date().toISOString().slice(0, 10),
+                });
+              }
+            }}
+          />
 
           <div className="flex gap-2">
             <select

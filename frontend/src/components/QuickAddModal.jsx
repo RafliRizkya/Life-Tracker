@@ -6,6 +6,8 @@ import { X } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { TX_CATEGORIES, LIFE_AREAS, CAREER_TYPES, SKILL_CATEGORIES } from "@/lib/seed";
 import { MONTHS_ID_LONG } from "@/lib/format";
+import { parseMessage } from "@/lib/whatsapp/parser";
+import { Wand2 } from "lucide-react";
 
 const TYPE_OPTIONS = [
   { key: "commitment", label: "Commitment" },
@@ -24,6 +26,12 @@ const empty = {
   txType: "expense",
   area: "career",
   priority: "medium",
+  goalKind: "qualitative",
+  metricCurrent: "",
+  metricTarget: "",
+  metricUnit: "IDR",
+  linkedCategory: "",
+  nlText: "",
   month: new Date().getMonth() + 1,
   year: new Date().getFullYear(),
   status: "planned",
@@ -59,6 +67,25 @@ export default function QuickAddModal() {
 
   const [type, setType] = useState(initialType);
   const [form, setForm] = useState(empty);
+  const [nlError, setNlError] = useState("");
+
+  function parseNaturalText() {
+    const result = parseMessage(form.nlText);
+    if (!result.matched) {
+      setNlError("Nggak nemu jumlah uangnya — coba sertakan angka, mis. \"beli kopi 4000 cash\".");
+      return;
+    }
+    setNlError("");
+    setForm((f) => ({
+      ...f,
+      title: result.title,
+      txType: result.type,
+      category: result.category,
+      amount: String(result.amount),
+      notes: result.notes,
+      date: result.date,
+    }));
+  }
 
   useEffect(() => {
     if (open) {
@@ -90,6 +117,16 @@ export default function QuickAddModal() {
         priority: form.priority,
         why: form.description,
         targetDate: form.date,
+        ...(form.goalKind === "quantitative"
+          ? {
+              metric: {
+                current: Number(form.metricCurrent) || 0,
+                target: Number(form.metricTarget) || 0,
+                unit: form.metricUnit || "IDR",
+              },
+              ...(form.linkedCategory ? { linkedCategory: form.linkedCategory } : {}),
+            }
+          : {}),
       });
     } else if (type === "transaction") {
       addTransaction({
@@ -246,6 +283,35 @@ export default function QuickAddModal() {
                       <input type="date" value={form.date} onChange={(e) => up("date", e.target.value)} className="input" />
                     </Field>
                   </div>
+                  <Field label="Jenis goal">
+                    <select value={form.goalKind} onChange={(e) => up("goalKind", e.target.value)} className="input" data-testid="goal-kind">
+                      <option value="qualitative">Kualitatif — konsep/pengembangan diri, dinilai manual</option>
+                      <option value="quantitative">Kuantitatif — ada target angka pasti</option>
+                    </select>
+                  </Field>
+                  {form.goalKind === "quantitative" && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="Nilai saat ini">
+                        <input type="number" min="0" value={form.metricCurrent} onChange={(e) => up("metricCurrent", e.target.value)} className="input" placeholder="0" data-testid="goal-metric-current" />
+                      </Field>
+                      <Field label="Target angka">
+                        <input type="number" min="0" value={form.metricTarget} onChange={(e) => up("metricTarget", e.target.value)} className="input" placeholder="0" data-testid="goal-metric-target" />
+                      </Field>
+                      <Field label="Satuan">
+                        <input value={form.metricUnit} onChange={(e) => up("metricUnit", e.target.value)} className="input" placeholder="IDR" />
+                      </Field>
+                    </div>
+                  )}
+                  {form.goalKind === "quantitative" && form.area === "finance" && (
+                    <Field label="Sinkron otomatis dengan kategori Finance (opsional)">
+                      <select value={form.linkedCategory} onChange={(e) => up("linkedCategory", e.target.value)} className="input" data-testid="goal-linked-category">
+                        <option value="">Tidak — isi manual</option>
+                        {TX_CATEGORIES.expense.map((c) => (
+                          <option key={c.key} value={c.key}>{c.label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
                   <Field label="Kenapa penting?">
                     <textarea value={form.description} onChange={(e) => up("description", e.target.value)} className="input h-20 resize-none" placeholder="Alasan yang jujur bikin goal ini bertahan." />
                   </Field>
@@ -254,6 +320,30 @@ export default function QuickAddModal() {
 
               {type === "transaction" && (
                 <>
+                  <Field label="Atau tulis bebas (opsional)">
+                    <div className="flex gap-2">
+                      <input
+                        value={form.nlText}
+                        onChange={(e) => { up("nlText", e.target.value); setNlError(""); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); parseNaturalText(); } }}
+                        className="input flex-1"
+                        placeholder='Contoh: "beli kopi 4000 cash" atau "gaji 5 juta"'
+                        data-testid="tx-nl-input"
+                      />
+                      <button
+                        type="button"
+                        onClick={parseNaturalText}
+                        className="btn-ghost px-3 rounded-lg border border-line dark:border-night-border flex-none"
+                        data-testid="tx-nl-parse-btn"
+                      >
+                        <Wand2 className="h-3.5 w-3.5" /> Parse
+                      </button>
+                    </div>
+                    {nlError && <p className="text-[11px] text-terracotta mt-1">{nlError}</p>}
+                    <p className="text-[10.5px] text-ink-muted mt-1">
+                      Otomatis isi field di bawah — cek dulu sebelum simpan. "beli"/"bayar" → pengeluaran, "gaji"/"bonus" → pemasukan.
+                    </p>
+                  </Field>
                   <div className="grid grid-cols-3 gap-3">
                     <Field label="Tipe">
                       <select value={form.txType} onChange={(e) => up("txType", e.target.value)} className="input" data-testid="tx-type">

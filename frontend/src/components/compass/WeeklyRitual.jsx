@@ -63,6 +63,7 @@ export default function WeeklyRitual() {
     () => ({
       readiness: careerReadiness(goals, skills, portfolio, careerMilestones),
       savings: savingsProgress(goals, transactions),
+      transactions,
     }),
     [goals, skills, portfolio, careerMilestones, transactions]
   );

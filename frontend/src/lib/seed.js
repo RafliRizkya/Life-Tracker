@@ -116,6 +116,9 @@ export const seedGoals = [
     status: "in_progress",
     targetDate: "2028-12-31",
     metric: { current: 8_400_000, target: 100_000_000, unit: "IDR" },
+    // Auto-syncs with Finance: metric.current is the baseline, every
+    // "saving" expense transaction adds on top (see linkedGoalCurrent()).
+    linkedCategory: "saving",
     milestones: [
       { id: id(), label: "Rp 10 juta", target: 10_000_000, achieved: false, achievedAt: null },
       { id: id(), label: "Rp 20 juta", target: 20_000_000, achieved: false, achievedAt: null },

@@ -11,7 +11,9 @@ import { TX_CATEGORIES } from "@/lib/seed";
 import { formatIDR, formatIDRShort, formatDateID, currentMonthKey, formatMonthYear } from "@/lib/format";
 import {
   Plus, Trash2, Download, TrendingUp, TrendingDown, AlertTriangle, PowerOff, Power, ChevronDown,
+  Sparkles, Loader2, Check,
 } from "lucide-react";
+import { buildContext } from "@/lib/ai/contextBuilder";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, LineChart, Line,
 } from "recharts";
@@ -27,7 +29,7 @@ export default function FinancePage() {
   const {
     transactions, budgets, reminders, goals,
     openQuickAdd, updateTransaction, removeTransaction, upsertBudget, removeBudget,
-    toggleReminder, removeReminder,
+    toggleReminder, removeReminder, setWeeklyBudgetOverride, clearWeeklyBudgetOverride,
   } = useLifeStore();
 
   const totals = monthlyTotals(transactions);
@@ -172,6 +174,9 @@ export default function FinancePage() {
         </Card>
       </div>
 
+      {/* AI Financial Planner */}
+      <FinancialPlanCard onApplyBudget={(category, limit) => upsertBudget({ category, limit, month: currentMonthKey() })} />
+
       {/* Budgets */}
       <section className="mb-8">
         <div className="flex items-end justify-between mb-3">
@@ -250,8 +255,15 @@ export default function FinancePage() {
                                         <div className="flex items-center justify-between gap-2 text-[12px]">
                                           <span className="flex-1 truncate">{CATEGORY_LABELS[c.category] || c.category}</span>
                                           <span className={clsx("font-mono tabular-nums", over ? "text-terracotta" : "text-ink-muted")}>
-                                            {formatIDR(c.spent)} / {formatIDR(c.allocated)}
+                                            {formatIDR(c.spent)} /
                                           </span>
+                                          <WeeklyAllocationEditor
+                                            allocated={c.allocated}
+                                            isOverride={c.isOverride}
+                                            over={over}
+                                            onSave={(amount) => setWeeklyBudgetOverride(c.budgetId, w.key, amount)}
+                                            onReset={() => clearWeeklyBudgetOverride(c.budgetId, w.key)}
+                                          />
                                           <button
                                             onClick={() => removeBudget(c.budgetId)}
                                             className="grid place-items-center h-8 w-8 -my-1 -mr-1 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta flex-none"
@@ -391,6 +403,177 @@ export default function FinancePage() {
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * AI financial planner — suggest-only. Generating never writes anything;
+ * "Terapkan" on a category calls the passed-in upsertBudget() directly,
+ * same trust boundary as filling the budget form by hand.
+ */
+function FinancialPlanCard({ onApplyBudget }) {
+  const [status, setStatus] = useState("idle"); // idle | loading | error | ready
+  const [plan, setPlan] = useState(null);
+  const [error, setError] = useState("");
+  const [applied, setApplied] = useState({});
+
+  async function generate() {
+    setStatus("loading");
+    setError("");
+    try {
+      const storeSnapshot = useLifeStore.getState();
+      const { payload } = buildContext(storeSnapshot, new Set(["finance", "goals"]));
+      const res = await fetch("/api/ai/financial-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context: payload }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || "Gagal generate rencana keuangan.");
+        setStatus("error");
+        return;
+      }
+      setPlan(body.plan);
+      setApplied({});
+      setStatus("ready");
+    } catch {
+      setError("Koneksi gagal — coba lagi.");
+      setStatus("error");
+    }
+  }
+
+  return (
+    <Card className="mb-8" data-testid="financial-plan-card">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="eyebrow flex items-center gap-1.5"><Sparkles className="h-3 w-3" /> AI Financial Planner</div>
+          <div className="h-display text-[22px] mt-1">Rencana keuangan</div>
+        </div>
+        {status !== "loading" && (
+          <button type="button" onClick={generate} className="btn-ghost text-[12px]" data-testid="generate-financial-plan-btn">
+            <Sparkles className="h-3.5 w-3.5" /> {status === "ready" ? "Generate ulang" : "Generate"}
+          </button>
+        )}
+      </div>
+
+      {status === "idle" && (
+        <p className="text-[12.5px] text-ink-muted mt-3">
+          Analisis kondisi keuanganmu bulan ini dan dapat saran alokasi dana, target saving rate, dan tips berhemat.
+        </p>
+      )}
+
+      {status === "loading" && (
+        <div className="flex items-center gap-2 text-[12.5px] text-ink-muted mt-3" data-testid="financial-plan-loading">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Menganalisis kondisi keuanganmu...
+        </div>
+      )}
+
+      {status === "error" && (
+        <p className="text-[12.5px] text-terracotta mt-3" data-testid="financial-plan-error">{error}</p>
+      )}
+
+      {status === "ready" && plan && (
+        <div className="mt-4 space-y-4">
+          <p className="text-[13px] text-ink-soft leading-relaxed">{plan.summary}</p>
+
+          {plan.targetSavingRate != null && (
+            <div className="text-[12.5px]">
+              <span className="text-ink-muted">Target saving rate: </span>
+              <span className="font-mono font-medium text-forest-500 dark:text-lime">{plan.targetSavingRate}%</span>
+            </div>
+          )}
+
+          {plan.tips.length > 0 && (
+            <ul className="space-y-1.5">
+              {plan.tips.map((tip, i) => (
+                <li key={i} className="text-[12.5px] text-ink-soft flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-forest-400 flex-none" />
+                  {tip}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {plan.categoryAdvice.length > 0 && (
+            <div className="space-y-2">
+              <div className="eyebrow">Saran budget per kategori</div>
+              {plan.categoryAdvice.map((c) => (
+                <div key={c.category} className="flex items-center gap-3 rounded-lg border border-line dark:border-night-border p-3" data-testid={`financial-plan-category-${c.category}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] font-medium">{CATEGORY_LABELS[c.category] || c.category}</div>
+                    {c.reason && <div className="text-[11px] text-ink-muted mt-0.5">{c.reason}</div>}
+                  </div>
+                  <div className="font-mono text-[12.5px] text-ink-muted whitespace-nowrap">{formatIDR(c.suggestedLimit)}</div>
+                  {applied[c.category] ? (
+                    <span className="text-forest-500 dark:text-lime flex items-center gap-1 text-[11.5px] flex-none"><Check className="h-3.5 w-3.5" /> Diterapkan</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { onApplyBudget(c.category, c.suggestedLimit); setApplied((a) => ({ ...a, [c.category]: true })); }}
+                      className="btn-ghost text-[11.5px] flex-none"
+                      data-testid={`apply-financial-plan-${c.category}`}
+                    >
+                      Terapkan
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Click the allocated amount to type a custom weekly budget; blank/Enter empty resets to auto-prorated. */
+function WeeklyAllocationEditor({ allocated, isOverride, over, onSave, onReset }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(allocated));
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed === "" || Number(trimmed) === 0) {
+      onReset();
+    } else {
+      onSave(Number(trimmed));
+    }
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        type="number"
+        min="0"
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="input !py-1 !px-2 w-24 text-[12px] font-mono"
+        data-testid="weekly-allocation-input"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => { setDraft(String(allocated)); setEditing(true); }}
+      className={clsx(
+        "font-mono tabular-nums underline decoration-dotted underline-offset-2",
+        over ? "text-terracotta" : "text-ink-muted hover:text-ink dark:hover:text-night-text"
+      )}
+      title={isOverride ? "Budget mingguan kustom — klik untuk ubah" : "Auto dari budget bulanan — klik untuk atur sendiri"}
+      data-testid="weekly-allocation-display"
+    >
+      {formatIDR(allocated)}{isOverride && <span className="text-forest-500 dark:text-lime">*</span>}
+    </button>
   );
 }
 

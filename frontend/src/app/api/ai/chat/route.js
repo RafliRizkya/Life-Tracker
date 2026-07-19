@@ -1,29 +1,10 @@
 import { NextResponse } from "next/server";
 import { streamChatCompletion } from "@/lib/ai/openrouter";
 import { buildMessages } from "@/lib/ai/promptBuilder";
+import { withinDailyLimit } from "@/lib/ai/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const MAX_PER_DAY = Number(process.env.AI_MAX_REQUESTS_PER_DAY) || 200;
-let requestCount = 0;
-let countResetAt = startOfNextDay();
-
-function startOfNextDay() {
-  const d = new Date();
-  d.setHours(24, 0, 0, 0);
-  return d.getTime();
-}
-
-function withinDailyLimit() {
-  if (Date.now() > countResetAt) {
-    requestCount = 0;
-    countResetAt = startOfNextDay();
-  }
-  if (requestCount >= MAX_PER_DAY) return false;
-  requestCount += 1;
-  return true;
-}
 
 /** Defensive belt-and-suspenders: the client already excludes isPrivate content. */
 function stripPrivateContent(context) {
