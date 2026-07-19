@@ -55,11 +55,11 @@ function prevMonthKey() {
 }
 
 function buildFinance(store) {
-  const { transactions = [], goals = [] } = store;
+  const { transactions = [], goals = [], financeTargets } = store;
   const cur = monthlyTotals(transactions);
   const prev = monthlyTotals(transactions, prevMonthKey());
   const byCategory = spendingByCategory(transactions).slice(0, 6);
-  const savings = savingsProgress(goals, transactions);
+  const savings = savingsProgress(goals, transactions, financeTargets);
 
   const twoMonthKeys = new Set([currentMonthKey(), prevMonthKey()]);
   const recentTx = transactions
@@ -202,7 +202,7 @@ export function buildContext(store, intent) {
     store.portfolio || [],
     store.careerMilestones || []
   );
-  const savings = savingsProgress(store.goals || [], store.transactions || []);
+  const savings = savingsProgress(store.goals || [], store.transactions || [], store.financeTargets);
   const ctx = { readiness, savings, transactions: store.transactions || [] };
 
   const payload = {};

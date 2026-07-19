@@ -49,7 +49,7 @@ const EMPTY_FORM = {
 export default function WeeklyRitual() {
   const {
     reviews, wins, reflections, commitments, goals, skills,
-    transactions, portfolio, careerMilestones, addReview, setFocusResolution,
+    transactions, portfolio, careerMilestones, financeTargets, addReview, setFocusResolution,
   } = useLifeStore();
 
   const followUps = useMemo(() => unresolvedFocusItems(reviews), [reviews]);
@@ -62,10 +62,10 @@ export default function WeeklyRitual() {
   const ctx = useMemo(
     () => ({
       readiness: careerReadiness(goals, skills, portfolio, careerMilestones),
-      savings: savingsProgress(goals, transactions),
+      savings: savingsProgress(goals, transactions, financeTargets),
       transactions,
     }),
-    [goals, skills, portfolio, careerMilestones, transactions]
+    [goals, skills, portfolio, careerMilestones, transactions, financeTargets]
   );
   // Computed once on mount — a starting suggestion the user edits, not a live value.
   const draft = useMemo(

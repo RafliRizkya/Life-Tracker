@@ -5,6 +5,7 @@
  */
 
 import { currentMonthKey, monthKey } from "./format";
+import { NON_SPENDING_CATEGORIES } from "./seed";
 
 /* ---------- Finance ---------- */
 
@@ -14,7 +15,7 @@ export function monthlyTotals(transactions, mk = currentMonthKey()) {
   for (const t of transactions) {
     if (monthKey(t.date) !== mk) continue;
     if (t.type === "income") income += Number(t.amount) || 0;
-    else expense += Number(t.amount) || 0;
+    else if (!NON_SPENDING_CATEGORIES.includes(t.category)) expense += Number(t.amount) || 0;
   }
   const net = income - expense;
   const savingRate = income > 0 ? Math.round((net / income) * 100) : 0;
@@ -43,6 +44,7 @@ export function spendingByCategory(transactions, mk = currentMonthKey()) {
   const map = new Map();
   for (const t of transactions) {
     if (t.type !== "expense") continue;
+    if (NON_SPENDING_CATEGORIES.includes(t.category)) continue;
     if (monthKey(t.date) !== mk) continue;
     map.set(t.category, (map.get(t.category) || 0) + Number(t.amount));
   }
@@ -52,14 +54,17 @@ export function spendingByCategory(transactions, mk = currentMonthKey()) {
 }
 
 /**
- * Month → Week (4 buckets, contiguous day ranges) → Category budget breakdown.
- * Week limits are computed by prorating each category's monthly limit by the
- * bucket's share of days — no separate per-week budget schema needed.
+ * Month → Week (4 buckets, contiguous day ranges) breakdown. Every
+ * transaction that falls in a week counts toward it automatically — no
+ * category dimension, and no opt-in required. Each week's `limit` is a
+ * flat, user-set cap on spending (see setWeeklyBudget in store.js);
+ * `spent` is every expense in that date range regardless of category
+ * (excluding money moved to savings/emergency fund — see
+ * NON_SPENDING_CATEGORIES), `income` is shown alongside for context but
+ * never counted against the limit — a "budget" caps spending, not money
+ * coming in.
  */
 export function budgetWeeklyBreakdown(budgets, transactions, mk = currentMonthKey()) {
-  const monthBudgets = budgets.filter((b) => b.month === mk);
-  if (monthBudgets.length === 0) return [];
-
   const [year, month] = mk.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
   const bucketSize = Math.ceil(daysInMonth / 4);
@@ -73,24 +78,19 @@ export function budgetWeeklyBreakdown(budgets, transactions, mk = currentMonthKe
   }
 
   return weeks.map((w) => {
-    const daysInWeek = w.endDay - w.startDay + 1;
-    const categories = monthBudgets.map((b) => {
-      const spent = transactions
-        .filter((t) => {
-          if (t.type !== "expense" || t.category !== b.category) return false;
-          if (monthKey(t.date) !== mk) return false;
-          const day = Number(t.date.slice(8, 10));
-          return day >= w.startDay && day <= w.endDay;
-        })
-        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      // A user-set weekly amount overrides the auto-prorated default —
-      // "budgeting shouldn't feel rigid" was the explicit ask.
-      const override = b.weeklyOverrides?.[w.key];
-      const prorated = Math.round((b.limit * daysInWeek) / daysInMonth);
-      const allocated = override != null ? override : prorated;
-      return { category: b.category, budgetId: b.id, allocated, spent, isOverride: override != null };
+    const inWeek = transactions.filter((t) => {
+      if (monthKey(t.date) !== mk) return false;
+      const day = Number(t.date.slice(8, 10));
+      return day >= w.startDay && day <= w.endDay;
     });
-    return { ...w, categories };
+    const spent = inWeek
+      .filter((t) => t.type === "expense" && !NON_SPENDING_CATEGORIES.includes(t.category))
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const income = inWeek
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const budget = budgets.find((b) => b.month === mk && b.week === w.key);
+    return { ...w, spent, income, limit: budget?.limit ?? null, budgetId: budget?.id ?? null };
   });
 }
 
@@ -120,16 +120,48 @@ export function goalKind(goal) {
   return goal.metric || goal.contributions ? "quantitative" : "qualitative";
 }
 
-export function savingsProgress(goals, transactions) {
+/**
+ * Dana Darurat / Tabungan aren't spending — they're funds with their own
+ * user-set target, tracked from a dedicated category (see
+ * NON_SPENDING_CATEGORIES). `fund.baseline` is whatever was already saved
+ * before this app started tracking; every matching transaction adds on top.
+ */
+export function fundCurrent(fund, transactions, categoryKey) {
+  const tracked = transactions
+    .filter((t) => t.type === "expense" && t.category === categoryKey)
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  return (fund?.baseline ?? 0) + tracked;
+}
+
+/** Even Rp10-juta-step milestones up to target — "10jt, 20jt, 30jt, dst." */
+export function fundMilestones(target) {
+  const step = 10_000_000;
+  const milestones = [];
+  for (let m = step; m < target; m += step) milestones.push(m);
+  if (target > 0 && milestones[milestones.length - 1] !== target) milestones.push(target);
+  return milestones;
+}
+
+/**
+ * The "Tabungan bertahap" goal looks up Finance's Tabungan fund as its
+ * single source of truth (2026-07-19) — current/target/milestones all come
+ * from `financeTargets.savings`, not from the goal's own `metric`. Falls
+ * back to the pre-2026-07-19 goal-based reading if financeTargets is
+ * somehow absent (defensive — every hydrate path backfills it).
+ */
+export function savingsProgress(goals, transactions, financeTargets) {
   const savingsGoal = goals.find((g) => g.id === "goal-savings-ladder");
   if (!savingsGoal) return null;
-  const current = linkedGoalCurrent(savingsGoal, transactions);
-  const target = savingsGoal.metric?.target ?? 100_000_000;
+  const fund = financeTargets?.savings;
+  const current = fund ? fundCurrent(fund, transactions, "saving") : linkedGoalCurrent(savingsGoal, transactions);
+  const target = fund?.target ?? savingsGoal.metric?.target ?? 100_000_000;
   const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
-  // Which ladder step are we on?
-  const milestones = (savingsGoal.milestones || []).map((m) => ({
-    ...m,
-    achieved: current >= m.target || m.achieved,
+  const milestoneTargets = fund ? fundMilestones(target) : (savingsGoal.milestones || []).map((m) => m.target);
+  const milestones = milestoneTargets.map((t) => ({
+    id: `m-${t}`,
+    label: `Rp ${(t / 1_000_000).toFixed(0)} juta`,
+    target: t,
+    achieved: current >= t,
   }));
   const nextIdx = milestones.findIndex((m) => !m.achieved);
   const next = nextIdx >= 0 ? milestones[nextIdx] : null;

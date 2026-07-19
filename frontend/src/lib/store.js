@@ -108,6 +108,7 @@ function persistableSlice(s) {
     reflections: s.reflections,
     wins: s.wins,
     letters: s.letters,
+    financeTargets: s.financeTargets,
     settings: s.settings,
   };
 }
@@ -137,6 +138,7 @@ export const useLifeStore = create((set, get) => ({
         reflections: stored.reflections ?? initial.reflections,
         wins: stored.wins ?? initial.wins,
         letters: stored.letters ?? initial.letters,
+        financeTargets: stored.financeTargets ?? initial.financeTargets,
         hydrated: true,
       });
     } else {
@@ -164,6 +166,7 @@ export const useLifeStore = create((set, get) => ({
           reflections: remote.reflections ?? initial.reflections,
           wins: remote.wins ?? initial.wins,
           letters: remote.letters ?? initial.letters,
+          financeTargets: remote.financeTargets ?? initial.financeTargets,
           hydrated: true,
         });
         saveToStorage(persistableSlice(get()));
@@ -295,26 +298,6 @@ export const useLifeStore = create((set, get) => ({
       goals: get().goals.map((g) =>
         g.id === id ? { ...g, status: "archived" } : g
       ),
-    });
-    get().persist();
-  },
-  toggleSavingsMilestone: (goalId, milestoneId) => {
-    set({
-      goals: get().goals.map((g) => {
-        if (g.id !== goalId || !g.milestones) return g;
-        return {
-          ...g,
-          milestones: g.milestones.map((m) =>
-            m.id === milestoneId
-              ? {
-                  ...m,
-                  achieved: !m.achieved,
-                  achievedAt: !m.achieved ? nowISO() : null,
-                }
-              : m
-          ),
-        };
-      }),
     });
     get().persist();
   },
@@ -494,46 +477,32 @@ export const useLifeStore = create((set, get) => ({
   },
 
   // ---------- Budgets ----------
-  upsertBudget: (payload) => {
+  // Flat weekly spending limit, no category dimension — every expense
+  // transaction that week counts against it, regardless of category.
+  setWeeklyBudget: (month, week, limit) => {
     const list = get().budgets;
-    const idx = list.findIndex(
-      (b) => b.category === payload.category && b.month === payload.month
-    );
+    const idx = list.findIndex((b) => b.month === month && b.week === week);
     if (idx >= 0) {
       const updated = [...list];
-      updated[idx] = { ...updated[idx], ...payload };
+      updated[idx] = { ...updated[idx], limit };
       set({ budgets: updated });
     } else {
-      set({
-        budgets: [
-          { id: nanoid(8), userId: USER_ID, ...payload },
-          ...list,
-        ],
-      });
+      set({ budgets: [{ id: nanoid(8), userId: USER_ID, month, week, limit }, ...list] });
     }
     get().persist();
   },
-  removeBudget: (id) => {
+  removeWeeklyBudget: (id) => {
     set({ budgets: get().budgets.filter((b) => b.id !== id) });
     get().persist();
   },
-  setWeeklyBudgetOverride: (budgetId, weekKey, amount) => {
+
+  // ---------- Finance targets (Dana Darurat / Tabungan) ----------
+  setFinanceTarget: (fund, target) => {
     set({
-      budgets: get().budgets.map((b) =>
-        b.id === budgetId
-          ? { ...b, weeklyOverrides: { ...b.weeklyOverrides, [weekKey]: amount } }
-          : b
-      ),
-    });
-    get().persist();
-  },
-  clearWeeklyBudgetOverride: (budgetId, weekKey) => {
-    set({
-      budgets: get().budgets.map((b) => {
-        if (b.id !== budgetId || !b.weeklyOverrides) return b;
-        const { [weekKey]: _removed, ...rest } = b.weeklyOverrides;
-        return { ...b, weeklyOverrides: rest };
-      }),
+      financeTargets: {
+        ...get().financeTargets,
+        [fund]: { ...get().financeTargets[fund], target },
+      },
     });
     get().persist();
   },

@@ -41,6 +41,7 @@ export default function DashboardPage() {
     reviews,
     reflections,
     settings,
+    financeTargets,
     toggleCommitment,
     openQuickAdd,
   } = useLifeStore();
@@ -49,7 +50,7 @@ export default function DashboardPage() {
   const reducedMotion = settings.reducedMotion || osReducedMotion;
 
   const totals = monthlyTotals(transactions);
-  const savings = savingsProgress(goals, transactions);
+  const savings = savingsProgress(goals, transactions, financeTargets);
   const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
   const momentum = skillMomentum(skills);
   const insights = buildInsights({

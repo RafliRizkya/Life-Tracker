@@ -115,18 +115,14 @@ export const seedGoals = [
     priority: "high",
     status: "in_progress",
     targetDate: "2028-12-31",
+    // 2026-07-19: this goal now looks up Finance's Tabungan tracker as its
+    // single source of truth (current/target/milestones) — see
+    // financeTargets.savings + fundCurrent()/fundMilestones() in
+    // insights.js, wired in via the goal-savings-ladder ID special-case in
+    // computeGoalProgress() and savingsProgress(). `metric` stays here only
+    // so goalKind() still classifies this as quantitative; its numbers are
+    // no longer read directly.
     metric: { current: 8_400_000, target: 100_000_000, unit: "IDR" },
-    // Auto-syncs with Finance: metric.current is the baseline, every
-    // "saving" expense transaction adds on top (see linkedGoalCurrent()).
-    linkedCategory: "saving",
-    milestones: [
-      { id: id(), label: "Rp 10 juta", target: 10_000_000, achieved: false, achievedAt: null },
-      { id: id(), label: "Rp 20 juta", target: 20_000_000, achieved: false, achievedAt: null },
-      { id: id(), label: "Rp 30 juta", target: 30_000_000, achieved: false, achievedAt: null },
-      { id: id(), label: "Rp 40 juta", target: 40_000_000, achieved: false, achievedAt: null },
-      { id: id(), label: "Rp 50 juta", target: 50_000_000, achieved: false, achievedAt: null },
-      { id: id(), label: "Rp 100 juta", target: 100_000_000, achieved: false, achievedAt: null },
-    ],
     createdAt: now(),
   },
   {
@@ -611,6 +607,7 @@ export const TX_CATEGORIES = {
     { key: "learning", label: "Belajar / kursus" },
     { key: "device", label: "Alat kerja" },
     { key: "saving", label: "Transfer tabungan" },
+    { key: "emergency_fund", label: "Dana Darurat" },
     { key: "charity", label: "Sedekah" },
     { key: "bpjs", label: "BPJS" },
     { key: "service", label: "Service motor" },
@@ -620,13 +617,22 @@ export const TX_CATEGORIES = {
   ],
 };
 
+/**
+ * Money moved into your own savings/emergency fund isn't consumption — it's
+ * excluded from every "Pengeluaran" (spending) figure: monthlyTotals(),
+ * spendingByCategory(), and budgetWeeklyBreakdown()'s weekly spent. Tracked
+ * instead as dedicated funds (see financeTargets below + fundCurrent() in
+ * insights.js) with their own KPI cards on the Finance page.
+ */
+export const NON_SPENDING_CATEGORIES = ["saving", "emergency_fund"];
+
 export const seedTransactions = generateTransactionHistory();
 
+// Flat weekly spending limit — no category dimension, every expense
+// transaction that week counts against it regardless of category.
 export const seedBudgets = [
-  { id: "b-1", userId: USER_ID, category: "food", limit: 900_000, month: currentMonthLabel() },
-  { id: "b-2", userId: USER_ID, category: "transport", limit: 400_000, month: currentMonthLabel() },
-  { id: "b-3", userId: USER_ID, category: "learning", limit: 300_000, month: currentMonthLabel() },
-  { id: "b-4", userId: USER_ID, category: "fun", limit: 250_000, month: currentMonthLabel() },
+  { id: "b-1", userId: USER_ID, month: currentMonthLabel(), week: "W1", limit: 500_000 },
+  { id: "b-2", userId: USER_ID, month: currentMonthLabel(), week: "W2", limit: 500_000 },
 ];
 
 export const seedReminders = [
@@ -991,6 +997,14 @@ export function buildInitialState() {
     reflections: seedReflections,
     wins: seedWins,
     letters: seedLetters,
+    // Dana Darurat + Tabungan: tracked separately from spending, own
+    // user-settable targets. `baseline` is savings/emergency-fund value
+    // from before this app started tracking; current = baseline + sum of
+    // matching-category transactions (fundCurrent() in insights.js).
+    financeTargets: {
+      emergencyFund: { target: 10_000_000, baseline: 0 },
+      savings: { target: 100_000_000, baseline: 8_400_000 },
+    },
     settings: {
       theme: "light",
       reducedMotion: false,

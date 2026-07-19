@@ -193,9 +193,8 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Action**: Set `status: "archived"`
 - **Effect**: Goal tidak tampil di list utama
 
-#### FR-GOAL-08: Savings Milestone Toggle
-- **Action**: Toggle `achieved` boolean per milestone
-- **Effect**: Set `achievedAt` timestamp, update visual
+#### FR-GOAL-08: Savings Milestone Display (removed manual toggle 2026-07-19)
+- **Removed**: milestones used to be a stored array with a manual toggle (`toggleSavingsMilestone`, `achieved`/`achievedAt` persisted per milestone). Deleted — milestones are fully derived now (FR-GOAL-10/FR-FIN-12: `current >= milestone.target`), so a manual override no longer has anywhere consistent to live. The drawer shows them read-only with a note ("Otomatis dari Tabungan di Finance").
 
 #### FR-GOAL-09: Goal Evidence Requirement (2026-07-18 — `docs/features/goal-evidence.md`)
 - **Computation**: `goalEvidenceStatus(goal, { skills, careerMilestones, transactions })` — pure, linkage via `goal.area` yang sudah ada (tanpa field baru)
@@ -203,10 +202,11 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **States**: `evidenced` / `unproven` / `pending` (goal lebih muda dari window — bukan sinyal negatif) / `exempt` (area growth/business, atau status bukan in_progress)
 - **Surfacing**: chip "belum ada bukti" di kartu goal unproven; stat "on track" mensyaratkan progress ≥ 40 **dan** bukan unproven. Kontrol status manual user tidak diubah — ini overlay komputasi
 
-#### FR-GOAL-10: Kuantitatif/Kualitatif Categorization + Finance Sync (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
+#### FR-GOAL-10: Kuantitatif/Kualitatif Categorization + Finance Sync (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`, `docs/features/finance-funds-and-weekly-budget.md`)
 - **`goalKind(goal)`**: derived, not stored. Returns `"quantitative"` if `goal.metric` or `goal.contributions` is present, else `"qualitative"`. Shown as a chip on every goal card.
-- **`linkedGoalCurrent(goal, transactions)`**: if `goal.linkedCategory` is set (an expense category key), current value = `metric.current` (treated as baseline) + sum of all matching-category expense transactions. Generalizes what was previously a `goal.id === "goal-savings-ladder"` special case — that goal now sets `linkedCategory: "saving"` explicitly instead of being ID-matched for its number tracking (its milestone-ladder *UI* is still ID-routed, that part is genuinely goal-specific).
-- **Add Goal form**: quantitative + finance-area goals get an optional "Sinkron otomatis dengan kategori Finance" dropdown.
+- **`linkedGoalCurrent(goal, transactions)`**: if `goal.linkedCategory` is set (an expense category key), current value = `metric.current` (treated as baseline) + sum of all matching-category expense transactions. General-purpose mechanism, available to any goal.
+- **`goal-savings-ladder` special case, superseded same day**: this specific goal briefly used `linkedGoalCurrent` via `linkedCategory: "saving"`, then — per a same-day follow-up request to track Tabungan as a first-class Finance entity — was changed again to look up `financeTargets.savings` directly (§5.7b) instead: current/target/milestones all come from Finance now, `linkedGoalCategory` was removed from this goal's seed data. `computeGoalProgress()`'s and `savingsProgress()`'s existing `goal.id === "goal-savings-ladder"` ID special-case (predates both of today's changes) is what routes to the Finance lookup.
+- **Add Goal form**: quantitative + finance-area goals get an optional "Sinkron otomatis dengan kategori Finance" dropdown (`linkedGoalCurrent` mechanism — available for any *other* finance goal a user creates; not what powers the savings-ladder goal specifically anymore).
 
 #### FR-GOAL-11: AI Action Plan Generator (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
 - **Trigger**: "Generate action plan dengan AI" button in the Goal detail drawer (also present in Skill detail — see FR-SKILL).
@@ -272,12 +272,20 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Data**: `spendingByCategory(transactions)` → donut chart
 - **Legend**: Category label + IDR short amount
 
-#### FR-FIN-05: Budget Management
-- **Display**: 3-level drill-down accordion — Month → Week (W1–W4, contiguous day-range buckets) → Category. Month row shows category count; week rows show aggregate spent/allocated; category rows show progress bar + over-budget warning (terracotta).
-- **Week allocation**: Each category's monthly `limit` is prorated across weeks by day-count share by default (`budgetWeeklyBreakdown()` in `insights.js`). **2026-07-19**: a week's allocation can be overridden by hand — `budgets.weeklyOverrides: {W1?: number, ...}` (optional, additive to §5.7's schema). The week/category row's amount is click-to-edit (`WeeklyAllocationEditor`); clearing the value falls back to auto-proration. `setWeeklyBudgetOverride`/`clearWeeklyBudgetOverride` store actions.
-- **Create**: Inline form (category dropdown, limit input), unchanged — still sets a month-level limit
-- **Delete**: Trash icon per category row (any week), removes the month-level budget via its `budgetId`
-- **Computation**: Match transactions by category + current month + day-of-month within the week's range
+#### FR-FIN-05: Budget Management (rewritten 2026-07-19 — see §5.7 for the "why")
+- **Display**: 2-level accordion — Month → Week (W1–W4, contiguous day-range buckets). Every week row is a leaf (no category sub-level): label + date range, muted "Pemasukan Rp X" for context, "Rp spent / Rp limit" with a progress bar, over-budget in terracotta.
+- **Mandatory inclusion**: every expense transaction that falls in a week's date range counts toward its `spent` automatically — no opt-in, no category matching required (`budgetWeeklyBreakdown()` in `insights.js`, unconditional now — previously only counted transactions whose category had a budget row configured for it).
+- **Weekly limit**: flat, user-set, no category dimension (§5.7). Click-to-edit (`WeeklyLimitEditor`) shows "atur limit" when unset; `setWeeklyBudget(month, week, limit)` to set, `removeWeeklyBudget(id)` to clear (blank/0 in the editor also clears).
+- **Excluded from spent**: transactions in `NON_SPENDING_CATEGORIES` (`saving`, `emergency_fund`) — see FR-FIN-11/12.
+
+#### FR-FIN-11: Dana Darurat Tracking (2026-07-19)
+- **Display**: KPI card on `/finance` (`FundCard`) — current (from `emergency_fund`-category transactions) vs. a user-set target, progress bar, click-to-edit target (`TargetEditor` → `setFinanceTarget("emergencyFund", target)`).
+- **Computation**: `fundCurrent(financeTargets.emergencyFund, transactions, "emergency_fund")` = baseline + sum of matching expense transactions.
+- **Not spending**: `emergency_fund` transactions are excluded from Pengeluaran everywhere (monthlyTotals, spending-by-category, weekly budget) — see §5.7b.
+
+#### FR-FIN-12: Tabungan Tracking (2026-07-19)
+- Same mechanics as FR-FIN-11, category `saving`, plus a milestone ladder: `fundMilestones(target)` auto-generates every Rp10-juta step up to the target (dots, filled once `current >= step`).
+- **This is also the goal-savings-ladder Goal's data source** — see FR-GOAL-10.
 
 #### FR-FIN-06: Finance Reminders
 - **Display**: List with title, amount, due day, cadence
@@ -555,10 +563,10 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | priority | string | | low / medium / high |
 | status | string | ✅ | planned / in_progress / completed / archived |
 | targetDate | string | | ISO date |
-| metric | object | | { current, target, unit } |
-| linkedCategory | string | | 2026-07-19. Expense category key (TX_CATEGORIES) — when set, live `current` = `metric.current` (baseline) + sum of matching expense transactions, via `linkedGoalCurrent()`. Only meaningful alongside `metric` |
+| metric | object | | { current, target, unit }. For `goal-savings-ladder` specifically (2026-07-19), these values are seed remnants only, kept so `goalKind()` still classifies it quantitative — its real current/target/milestones come from `financeTargets.savings` in Finance instead (see §5.7b, FR-GOAL-10) |
+| linkedCategory | string | | Expense category key (TX_CATEGORIES) — when set, live `current` = `metric.current` (baseline) + sum of matching expense transactions, via `linkedGoalCurrent()`. Only meaningful alongside `metric`. Not used by `goal-savings-ladder` since 2026-07-19 (superseded by the financeTargets lookup above) |
 | contributions | array | | [{key, label, weight, value}] |
-| milestones | array | | [{id, label, target, achieved, achievedAt}] |
+| milestones | array | | Deprecated 2026-07-19 for `goal-savings-ladder` — its milestones are now derived (`fundMilestones()`), not stored. Still a valid ad-hoc field for any other goal that wants stored milestones |
 | progress | number | | 0–100 |
 | notes | string | | Free text |
 
@@ -627,14 +635,25 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | recurring | boolean | | Is recurring transaction |
 
 ### 5.7 Budget
+**Rewritten 2026-07-19** — was category+month with an auto-prorated/overridable weekly split (2026-07-19 morning); now a flat weekly limit, no category dimension, per explicit request ("batas mingguan bisa di-setting oleh saya, bukan ditentukan oleh budget kategori"). One row per (month, week).
 | Field | Type | Required | Description |
 |---|---|---|---|
 | id | string | ✅ | Primary key |
 | userId | string | ✅ | Owner |
-| category | string | ✅ | Expense category |
-| limit | number | ✅ | Budget limit in IDR |
 | month | string | ✅ | "YYYY-MM" format |
-| weeklyOverrides | object | | 2026-07-19. `{W1?, W2?, W3?, W4?: number}` — hand-set weekly amount, overrides the auto-prorated default in `budgetWeeklyBreakdown()` when present for that week |
+| week | string | ✅ | "W1" \| "W2" \| "W3" \| "W4" |
+| limit | number | ✅ | Weekly spending cap in IDR, hand-set via `setWeeklyBudget()`. Every expense transaction in that week's date range counts against it, regardless of category — except `NON_SPENDING_CATEGORIES` (§5.7b) |
+
+### 5.7b Finance Targets (2026-07-19)
+Not a per-row entity — one object in the root state, keyed by fund name. Backs the Dana Darurat and Tabungan KPI cards on the Finance page (FR-FIN-11/12) and the `goal-savings-ladder` lookup (FR-GOAL-10).
+| Field | Type | Required | Description |
+|---|---|---|---|
+| financeTargets.emergencyFund.target | number | ✅ | User-set Dana Darurat target, IDR |
+| financeTargets.emergencyFund.baseline | number | ✅ | Amount saved before this app started tracking |
+| financeTargets.savings.target | number | ✅ | User-set Tabungan target, IDR |
+| financeTargets.savings.baseline | number | ✅ | Amount saved before this app started tracking |
+
+Current value for either fund = `baseline + sum(expense transactions matching its category)` — `fundCurrent()` in `insights.js`. Dana Darurat's category is `emergency_fund`; Tabungan's is `saving`. Both categories are in `NON_SPENDING_CATEGORIES` — excluded from `monthlyTotals()`'s expense sum, `spendingByCategory()`, and `budgetWeeklyBreakdown()`'s weekly spent, since moving money to your own savings isn't spending.
 
 ### 5.8 Reminder
 | Field | Type | Required | Description |
@@ -766,7 +785,8 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | FR-GOAL-06 | Quick Add Modal | addGoal | goals/page.js |
 | FR-CAREER-03 | Track toggle + CareerTrail (skill map) + TrailCard | - | career/page.js |
 | FR-FIN-07 | Transaction list | addTransaction, removeTransaction | finance/page.js |
-| FR-FIN-05 | Budget Month→Week→Category accordion | upsertBudget, removeBudget, budgetWeeklyBreakdown | finance/page.js |
+| FR-FIN-05 | Month→Week accordion, WeeklyLimitEditor | setWeeklyBudget, removeWeeklyBudget, budgetWeeklyBreakdown | finance/page.js |
+| FR-FIN-11 / FR-FIN-12 | FundCard, TargetEditor | setFinanceTarget, fundCurrent, fundMilestones | finance/page.js |
 | FR-SKILL-03 | Catat sesi button | practiceSkill | skills/page.js |
 | FR-COMPASS-02 | WeeklyRitual | addReview | compass/page.js |
 | FR-COMPASS-03 | Quick form | addReflection | compass/page.js |

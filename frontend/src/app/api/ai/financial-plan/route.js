@@ -35,8 +35,8 @@ function normalizePlan(parsed) {
 
 /**
  * Suggest-only: analyzes finance context sent by the client and returns a
- * plan. Never writes to the store — applying a category suggestion is a
- * normal user-triggered upsertBudget() call from the client.
+ * plan. Never writes to the store — category advice is purely informational
+ * (budgets have no category dimension since 2026-07-19, nothing to apply it to).
  */
 export async function POST(request) {
   let body;

@@ -15,15 +15,15 @@ import clsx from "clsx";
 
 export default function GoalsPage() {
   const {
-    goals, skills, portfolio, careerMilestones, transactions,
-    openQuickAdd, updateGoal, archiveGoal, toggleSavingsMilestone,
+    goals, skills, portfolio, careerMilestones, transactions, financeTargets,
+    openQuickAdd, updateGoal, archiveGoal,
   } = useLifeStore();
 
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(null);
 
   const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
-  const savings = savingsProgress(goals, transactions);
+  const savings = savingsProgress(goals, transactions, financeTargets);
   const ctx = { readiness, savings, transactions };
 
   const filtered = goals
@@ -124,7 +124,9 @@ export default function GoalsPage() {
               <div className="h-display text-[19px] mt-3 leading-tight">{g.title}</div>
               {g.metric && (
                 <div className="mt-2 text-[11.5px] text-ink-muted">
-                  {g.metric.unit === "IDR"
+                  {g.id === "goal-savings-ladder" && savings
+                    ? `${formatIDR(savings.current)} · target ${formatIDR(savings.target)}`
+                    : g.metric.unit === "IDR"
                     ? `${formatIDR(linkedGoalCurrent(g, transactions))} · target ${formatIDR(g.metric.target)}`
                     : `${linkedGoalCurrent(g, transactions)} dari ${g.metric.target} ${g.metric.unit}`}
                 </div>
@@ -172,7 +174,6 @@ export default function GoalsPage() {
             ctx={ctx}
             onClose={() => setSelected(null)}
             onArchive={() => { archiveGoal(selected.id); setSelected(null); }}
-            onSavingsToggle={(mid) => toggleSavingsMilestone(selected.id, mid)}
             onUpdate={(patch) => { updateGoal(selected.id, patch); setSelected({ ...selected, ...patch }); }}
           />
         )}
@@ -206,7 +207,7 @@ function FilterPill({ active, children, onClick }) {
   );
 }
 
-function GoalDetail({ goal, ctx, onClose, onArchive, onSavingsToggle, onUpdate }) {
+function GoalDetail({ goal, ctx, onClose, onArchive, onUpdate }) {
   const addCommitment = useLifeStore((s) => s.addCommitment);
   const pct = computeGoalProgress(goal, ctx);
   const area = LIFE_AREAS.find((a) => a.key === goal.area);
@@ -289,28 +290,25 @@ function GoalDetail({ goal, ctx, onClose, onArchive, onSavingsToggle, onUpdate }
           {isSavings && ctx?.savings && (
             <div>
               <div className="eyebrow mb-2">Milestone berurutan</div>
+              <p className="text-[11px] text-ink-muted mb-2">
+                Otomatis dari Tabungan di Finance — atur targetnya di sana.
+              </p>
               <ul className="space-y-2">
                 {ctx.savings.milestones.map((m) => (
                   <li key={m.id} className="flex items-center gap-3 p-3 rounded-lg border border-line dark:border-night-border">
-                    <button
-                      onClick={() => onSavingsToggle(m.id)}
+                    <span
                       className={clsx(
-                        "h-5 w-5 rounded-full grid place-items-center border",
-                        m.achieved ? "bg-forest-500 border-forest-500 text-white" : "border-line hover:border-forest-500"
+                        "h-5 w-5 rounded-full grid place-items-center border flex-none",
+                        m.achieved ? "bg-forest-500 border-forest-500 text-white" : "border-line"
                       )}
                       data-testid={`savings-milestone-${m.target}`}
                     >
                       {m.achieved && <CheckCircle2 className="h-3 w-3" />}
-                    </button>
+                    </span>
                     <div className="flex-1">
                       <div className={clsx("text-[13.5px] font-medium", m.achieved && "line-through text-ink-muted")}>
                         {m.label}
                       </div>
-                      {m.achievedAt && (
-                        <div className="text-[10.5px] text-ink-muted mt-0.5">
-                          Tercapai {formatDateID(m.achievedAt.slice(0,10))}
-                        </div>
-                      )}
                     </div>
                     <span className="font-mono text-[11px] text-ink-muted">
                       {formatIDR(m.target)}
