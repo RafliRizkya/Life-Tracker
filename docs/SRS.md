@@ -280,18 +280,25 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 
 #### FR-FIN-11: Dana Darurat Tracking (2026-07-19)
 - **Display**: KPI card on `/finance` (`FundCard`) — current (from `emergency_fund`-category transactions) vs. a user-set target, progress bar, click-to-edit target (`TargetEditor` → `setFinanceTarget("emergencyFund", target)`).
-- **Computation**: `fundCurrent(financeTargets.emergencyFund, transactions, "emergency_fund")` = baseline + sum of matching expense transactions.
+- **Computation**: `fundCurrent(transactions, "emergency_fund")` = sum of matching expense transactions (no baseline — see §5.7b, removed 2026-07-20).
 - **Not spending**: `emergency_fund` transactions are excluded from Pengeluaran everywhere (monthlyTotals, spending-by-category, weekly budget) — see §5.7b.
 
-#### FR-FIN-12: Tabungan Tracking (2026-07-19)
+#### FR-FIN-12: Tabungan Tracking (2026-07-19, staged target 2026-07-20)
 - Same mechanics as FR-FIN-11, category `saving`, plus a milestone ladder: `fundMilestones(target)` auto-generates every Rp10-juta step up to the target (dots, filled once `current >= step`).
 - **This is also the goal-savings-ladder Goal's data source** — see FR-GOAL-10.
+- **Staged target (2026-07-20)**: the `FundCard`'s big number/progress bar targets the *next unachieved milestone*, not the grand total — `savingsProgress()` returns this as `target` (staged) separately from `grandTarget` (the ultimate number, e.g. Rp100 juta). Progress climbs 0→100% per Rp10-juta stage instead of crawling toward a distant ceiling.
+- **`editTarget` vs `target`**: `FundCard`'s click-to-edit field writes to `financeTargets.savings.target` — the grand total — via a separate `editTarget` prop, deliberately *not* the same value as the displayed staged `target`. Editing the displayed "Rp10jt" number would otherwise silently overwrite the real Rp100jt goal.
 
 #### FR-FIN-06: Finance Reminders
 - **Display**: List with title, amount, due day, cadence
 - **Toggle**: Active/inactive via Power icon
+- **Edit** (2026-07-20): Pencil icon swaps the row for an inline form (title, amount, due day, cadence) with Save/Cancel — `updateReminder(id, patch)` store action, same in-place-edit pattern used elsewhere in the app
 - **Delete**: Trash icon
 - **Add**: Via Quick Add modal
+
+#### FR-FIN-13: Income Earmark + Progress Bar Clarity (2026-07-20)
+- **Earmark**: Income scorecard shows `"{sum of current month's weekly limits} dialokasikan mingguan · sisa {income − that sum}"` whenever any weekly limit is set — makes setting a weekly cap visibly reduce the money "available" for anything else.
+- **Progress bar clarity**: a week with no limit set no longer renders a solid, misleadingly-empty 0% progress bar; shows a dashed unfilled placeholder instead (transactions are still tracked and counted, just not yet capped).
 
 #### FR-FIN-07: Transaction List
 - **Display**: Scrollable list (max 60), type icon (↓/↗), title, category, date, amount (green/default)
@@ -353,18 +360,20 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 
 Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflection.md` → `docs/features/life-compass.md`). Route `/compass`; `/reflection` and `/review` client-redirect here. Data model kept as two separate arrays (`reflections`, `reviews`) — the merge is at the module/nav/UI level, not the record level.
 
-#### FR-COMPASS-01: Tab Navigation
-- **5 tabs**: Ritual Mingguan (default), Berbenah (compose), Timeline, Wins & Gratitude, Surat untuk Diri
+#### FR-COMPASS-01: Tab Navigation (4 tabs since 2026-07-20, was 5)
+- **4 top-level tabs**: Berbenah (default — internal mode toggle: Tulis Refleksi / Ritual Mingguan, see FR-COMPASS-02), Timeline, Wins & Gratitude, Surat untuk Diri
+- **2026-07-20**: "Ritual Mingguan" and "Berbenah" were separate top-level tabs; merged into one ("Berbenah") with `BerbenahSection` wrapping both `WeeklyRitual` and `ComposeSection` behind an internal mode toggle — same rationale as the original Reflection+WeeklyReview merge (both were a weekly-check-in-and-write flow under two names). Explicit sign-off obtained directly (user requested the merge), satisfying the "don't restructure Life Compass further without asking again" note from that prior merge.
 - **Transition**: AnimatePresence with fade + slide
 
-#### FR-COMPASS-02: Ritual Mingguan (weekly ritual — replaces old Weekly Review form)
+#### FR-COMPASS-02: Ritual Mingguan (weekly ritual — replaces old Weekly Review form; reachable via Berbenah's internal mode toggle since 2026-07-20)
 - **Present (grounding)**: Mood picker (10 words, shared `MoodPicker` component), Energi (1–5), Stres (1–5)
 - **Past (recognition)**: Editable "Hero's Journey" draft — `weeklyNarrativeDraft()` composes a rule-based (not LLM) opening paragraph from this week's wins/reflections/commitments counts and the most-reflected-on goal, pre-filling the `highlights` textarea
 - **Momentum vs Burnout indicator**: `momentumIndex(reviews, commitments)` — reads the last 2–3 rituals' energy/stress trend + current open-commitment count; returns `"unknown"` (not enough data yet) until ≥2 rituals have energy/stress filled in, else `"momentum"` / `"balanced"` / `"burnout-risk"`
 - **Butterfly Effect card**: Shows the goal most linked across recent reflections (`reflectionInsights().topGoal`) alongside its live computed progress %
 - **Future (trajectory)**: Blockers, refleksi keuangan, progres karier/skill (textareas), 1–3 fokus minggu depan, linked goals/skills
 - **Privacy**: `isPrivate: true` default (previously Weekly Review had no privacy concept at all)
-- **History**: Chronological list below the form, same card as before (date, mood chip, highlights excerpt, focus chips)
+- **History**: Chronological list below the form (date, mood chip, highlights excerpt, focus chips). **Bug fixed 2026-07-20**: rows rendered a chevron implying they were clickable but had no `onClick` at all, and only ever showed `highlights`/`nextWeekFocus` — the other 5 submitted fields (blockers, finance, careerProgress, energyLevel, stressLevel, moodWord) were completely unreachable. Now each row opens a `ReviewDetail` drawer (same pattern as `GoalDetail`/`SkillDetail`/`ReflectionDetail`) showing every field.
+- **AI response (2026-07-20)**: after a successful submit, `AIReflectionResponse` sends the entry's free-text fields (joined) + mood/energy/stress to `/api/ai/reflection-response` and shows one short empathetic reply — see FR-COMPASS-14.
 
 #### FR-COMPASS-03: Quick Reflection Form
 - **Fields**:
@@ -377,6 +386,7 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
   - 1–3 improvement actions (optional inputs)
   - Links & Tags (collapsible: tags, linked goals, linked skills)
 - **Autosave**: Draft saved to localStorage with debounce 350ms
+- **AI response (2026-07-20)**: same as FR-COMPASS-02 — see FR-COMPASS-14
 
 #### FR-COMPASS-04: Deep Reflection Form
 - **5 templates** with unique prompts:
@@ -422,8 +432,9 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 - **Open**: Set `opened: true` + `openedAt` timestamp
 
 #### FR-COMPASS-11: AI Privacy Boundary
-- **Rule**: Raw reflection/letter/ritual body text never assembled into outbound AI context — only `reflectionInsights()`/`reviewInsights()` aggregated output
+- **Rule**: Raw reflection/letter/ritual body text never assembled into outbound AI context for the chat assistant / action-plan generator / financial planner — only `reflectionInsights()`/`reviewInsights()` aggregated output
 - **Verification**: Network-layer test (see `docs/features/ai-assistant.md`), not just code review
+- **One narrow, explicit exception (2026-07-20)**: FR-COMPASS-14's reflection-response route. Confirmed directly with the user (`AskUserQuestion`) before building — scoped to the single just-submitted entry only, never routed through `contextBuilder.js`, so this rule's guarantee is otherwise unchanged for every other AI surface.
 
 #### FR-COMPASS-12: Ritual Follow-Up ("nagih ke masa lalu", 2026-07-18)
 - **Selector**: `unresolvedFocusItems(reviews, windowWeeks = 3)` — fokus dari ritual 1–3 minggu lalu tanpa entri `focusStatus`, tertua dulu; ritual minggu berjalan tidak pernah menagih
@@ -431,6 +442,14 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 - **Action**: `setFocusResolution(reviewId, index, status)` — toggle ringan, review lama tetap immutable
 - **UI**: kartu "Dari ritual sebelumnya" di atas form Ritual Mingguan; per item: Sudah jalan / Bawa ke minggu ini (mengisi slot fokus kosong pertama form baru, disabled bila penuh) / Lepaskan dengan sadar
 - **Scope**: tidak menyentuh `reviewInsights()`/`momentumIndex()`/`weeklyNarrativeDraft()`/AI context
+
+#### FR-COMPASS-14: AI Reflection Response (2026-07-20 — `docs/features/finance-and-compass-rework.md`)
+- **Trigger**: successful submit of the ritual form, quick reflection form, or deep reflection form (all three, under Berbenah)
+- **Flow**: client assembles that one entry's free-text fields (joined) + `moodWord`/`energyLevel`/`stressLevel` → `POST /api/ai/reflection-response` → one short (2-4 sentence) tone-matched response — calming for heavy/stressed content, gently motivating for low energy, celebratory for positive content
+- **Component**: `AIReflectionResponse.jsx`, shared across all three submit points
+- **Privacy exception**: see FR-COMPASS-11. Only the just-submitted entry, never history, never through `contextBuilder.js`
+- **Rate-limited**: shares the daily AI cap with every other AI route (`AI_MAX_REQUESTS_PER_DAY`, one counter total — see `docs/features/ai-action-plan-and-financial-planner.md`)
+- **Read-only**: the response is displayed, never written back to the reflection/review record
 
 ---
 
@@ -644,16 +663,16 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | week | string | ✅ | "W1" \| "W2" \| "W3" \| "W4" |
 | limit | number | ✅ | Weekly spending cap in IDR, hand-set via `setWeeklyBudget()`. Every expense transaction in that week's date range counts against it, regardless of category — except `NON_SPENDING_CATEGORIES` (§5.7b) |
 
-### 5.7b Finance Targets (2026-07-19)
+### 5.7b Finance Targets (2026-07-19, `baseline` removed 2026-07-20)
 Not a per-row entity — one object in the root state, keyed by fund name. Backs the Dana Darurat and Tabungan KPI cards on the Finance page (FR-FIN-11/12) and the `goal-savings-ladder` lookup (FR-GOAL-10).
 | Field | Type | Required | Description |
 |---|---|---|---|
 | financeTargets.emergencyFund.target | number | ✅ | User-set Dana Darurat target, IDR |
-| financeTargets.emergencyFund.baseline | number | ✅ | Amount saved before this app started tracking |
 | financeTargets.savings.target | number | ✅ | User-set Tabungan target, IDR |
-| financeTargets.savings.baseline | number | ✅ | Amount saved before this app started tracking |
 
-Current value for either fund = `baseline + sum(expense transactions matching its category)` — `fundCurrent()` in `insights.js`. Dana Darurat's category is `emergency_fund`; Tabungan's is `saving`. Both categories are in `NON_SPENDING_CATEGORIES` — excluded from `monthlyTotals()`'s expense sum, `spendingByCategory()`, and `budgetWeeklyBreakdown()`'s weekly spent, since moving money to your own savings isn't spending.
+Current value for either fund = `sum(expense transactions matching its category)` — `fundCurrent(transactions, categoryKey)` in `insights.js`. Dana Darurat's category is `emergency_fund`; Tabungan's is `saving`. Both categories are in `NON_SPENDING_CATEGORIES` — excluded from `monthlyTotals()`'s expense sum, `spendingByCategory()`, and `budgetWeeklyBreakdown()`'s weekly spent, since moving money to your own savings isn't spending.
+
+**2026-07-20**: each fund originally also had a `baseline` field (a starting number added on top of the transaction sum, representing savings from before the app started tracking). Removed — it read as an unexplained "phantom" amount not backed by any visible transaction. `fundCurrent()` is now a pure transaction sum, no addition.
 
 ### 5.8 Reminder
 | Field | Type | Required | Description |
@@ -796,8 +815,13 @@ Current value for either fund = `baseline + sum(expense transactions matching it
 | FR-GOAL-10 | Goal card kind chip, Quick Add kind/linkedCategory fields | addGoal, goalKind, linkedGoalCurrent | goals/page.js |
 | FR-GOAL-11 / FR-SKILL-05b | ActionPlanPanel | addCommitment (goal) / updateSkill via onUpdate (skill) | components/ActionPlanPanel.jsx |
 | FR-FIN-09 | Quick Add free-text field | parseMessage (no store action — pre-fills form) | components/QuickAddModal.jsx |
-| FR-FIN-10 | FinancialPlanCard | upsertBudget | finance/page.js |
+| FR-FIN-10 | FinancialPlanCard | - (informational only since 2026-07-19, no per-category budget left to apply into) | finance/page.js |
+| FR-FIN-13 | Income scorecard hint, WeeklyLimitEditor placeholder | setWeeklyBudget | finance/page.js |
+| FR-FIN-06 (edit) | ReminderRow inline edit | updateReminder | finance/page.js |
+| FR-COMPASS-01/02 | BerbenahSection mode toggle | - | compass/page.js |
+| FR-COMPASS-02 (history fix) | ReviewDetail drawer | setSelectedReview (local state) | components/compass/WeeklyRitual.jsx |
+| FR-COMPASS-14 | AIReflectionResponse | - (read-only response, no store write) | components/compass/AIReflectionResponse.jsx |
 
 ---
 
-*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04).*
+*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04), 19-20 Juli 2026 untuk Goals/Finance AI upgrade, Supabase sync, weekly budget rewrite, Dana Darurat/Tabungan funds, dan Life Compass rework (tab merge + AI reflection response).*

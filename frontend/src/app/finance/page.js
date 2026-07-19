@@ -12,7 +12,7 @@ import { TX_CATEGORIES } from "@/lib/seed";
 import { formatIDR, formatIDRShort, formatDateID, currentMonthKey, formatMonthYear } from "@/lib/format";
 import {
   Plus, Trash2, Download, TrendingUp, TrendingDown, AlertTriangle, PowerOff, Power, ChevronDown,
-  Sparkles, Loader2,
+  Sparkles, Loader2, Pencil, Check as CheckIcon, X as XIcon,
 } from "lucide-react";
 import { buildContext } from "@/lib/ai/contextBuilder";
 import {
@@ -30,14 +30,14 @@ export default function FinancePage() {
   const {
     transactions, budgets, reminders, goals, financeTargets,
     openQuickAdd, updateTransaction, removeTransaction,
-    toggleReminder, removeReminder, setWeeklyBudget, removeWeeklyBudget, setFinanceTarget,
+    toggleReminder, removeReminder, updateReminder, setWeeklyBudget, removeWeeklyBudget, setFinanceTarget,
   } = useLifeStore();
 
   const totals = monthlyTotals(transactions);
   const series = last6MonthsSeries(transactions);
   const catPie = spendingByCategory(transactions);
   const savings = savingsProgress(goals, transactions, financeTargets);
-  const emergencyFundCurrent = fundCurrent(financeTargets.emergencyFund, transactions, "emergency_fund");
+  const emergencyFundCurrent = fundCurrent(transactions, "emergency_fund");
 
   const [monthOpen, setMonthOpen] = useState(true);
   const storeReducedMotion = useLifeStore((s) => s.settings.reducedMotion);
@@ -70,7 +70,8 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* Hero + savings ring */}
+      {/* Hero — Tabungan now has its own KPI card below, so this no longer
+          needs a redundant ring; shows top spending categories instead. */}
       <motion.section
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -97,11 +98,24 @@ export default function FinancePage() {
             )}
           </div>
         </div>
-        {savings && (
-          <div className="grid place-items-center">
-            <SavingsRing pct={savings.pct} />
-            <div className="text-center mt-2 text-[10.5px] font-mono text-forest-100/80">
-              menuju Rp {(savings.target/1_000_000).toFixed(0)} jt
+        {catPie.length > 0 && (
+          <div className="w-full md:w-[220px]" data-testid="hero-top-categories">
+            <div className="eyebrow text-forest-100/80 mb-2">Pengeluaran terbesar</div>
+            <div className="space-y-2.5">
+              {catPie.slice(0, 3).map((c) => {
+                const pct = catPie[0].amount > 0 ? Math.round((c.amount / catPie[0].amount) * 100) : 0;
+                return (
+                  <div key={c.category}>
+                    <div className="flex justify-between text-[11px] text-forest-100/90 mb-1">
+                      <span>{CATEGORY_LABELS[c.category] || c.category}</span>
+                      <span className="font-mono">{formatIDRShort(c.amount)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-forest-500/40 overflow-hidden">
+                      <div className="h-full bg-lime rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -109,7 +123,13 @@ export default function FinancePage() {
 
       {/* Scorecards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Scorecard label="Income" value={formatIDRShort(totals.income)} hint={`vs goal Rp 10 jt`} />
+        <Scorecard
+          label="Income"
+          value={formatIDRShort(totals.income)}
+          hint={monthLimitTotal > 0
+            ? `${formatIDRShort(monthLimitTotal)} dialokasikan mingguan · sisa ${formatIDRShort(Math.max(0, totals.income - monthLimitTotal))}`
+            : "vs goal Rp 10 jt"}
+        />
         <Scorecard label="Expense" value={formatIDRShort(totals.expense)} hint={`${Math.round((totals.expense/(totals.income||1))*100)}% dari income`} />
         <Scorecard label="Saving rate" value={`${totals.savingRate}%`} hint="dari income bulan ini" tone="forest" />
         <Scorecard label="Spending score" value={`${totals.spendingScore}/100`} hint="lebih tinggi lebih baik" tone="lime" />
@@ -130,6 +150,7 @@ export default function FinancePage() {
             label="Tabungan"
             current={savings.current}
             target={savings.target}
+            editTarget={savings.grandTarget}
             onSetTarget={(t) => setFinanceTarget("savings", t)}
             milestones={savings.milestones}
           />
@@ -262,7 +283,11 @@ export default function FinancePage() {
                             />
                           </div>
                         </div>
-                        <Progress value={pct} tone={over ? "terra" : "forest"} className="mt-2" />
+                        {w.limit != null ? (
+                          <Progress value={pct} tone={over ? "terra" : "forest"} className="mt-2" />
+                        ) : (
+                          <div className="mt-2 h-1.5 rounded-full border border-dashed border-line dark:border-night-border" title="Belum ada limit — transaksi tetap tercatat, atur limit untuk lihat persentase pemakaian" />
+                        )}
                       </li>
                     );
                   })}
@@ -287,24 +312,13 @@ export default function FinancePage() {
           </div>
           <ul className="space-y-2">
             {reminders.map((r) => (
-              <li key={r.id} className={clsx(
-                "rounded-xl border p-4 flex items-start gap-3",
-                r.active ? "border-line dark:border-night-border bg-card dark:bg-night-card" : "border-line/50 opacity-60"
-              )}>
-                <span className={clsx("mt-1 h-2.5 w-2.5 rounded-full", r.active ? "bg-terracotta" : "bg-line")} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium">{r.title}</div>
-                  <div className="text-[11px] text-ink-muted">
-                    {r.amount ? formatIDR(r.amount) : "Ikuti nominal masukan"} · setiap tanggal {r.dueDay} · {r.cadence}
-                  </div>
-                </div>
-                <button onClick={() => toggleReminder(r.id)} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50" aria-label="Toggle">
-                  {r.active ? <Power className="h-3.5 w-3.5 text-forest-500" /> : <PowerOff className="h-3.5 w-3.5 text-ink-muted" />}
-                </button>
-                <button onClick={() => removeReminder(r.id)} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta" aria-label="Hapus">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </li>
+              <ReminderRow
+                key={r.id}
+                reminder={r}
+                onToggle={() => toggleReminder(r.id)}
+                onSave={(patch) => updateReminder(r.id, patch)}
+                onRemove={() => removeReminder(r.id)}
+              />
             ))}
           </ul>
         </section>
@@ -519,13 +533,22 @@ function WeeklyLimitEditor({ limit, over, onSave, onClear }) {
 }
 
 /** Dana Darurat / Tabungan KPI card — separate from spending, own user-set target. */
-function FundCard({ testId, label, current, target, onSetTarget, milestones }) {
+/**
+ * `target` drives the progress bar/big number — for Tabungan this is the
+ * staged (next-milestone) target, not the grand total, so progress climbs
+ * 0→100% per stage instead of crawling toward a distant ceiling the whole
+ * time. `editTarget` (defaults to `target`) is what the click-to-edit
+ * field actually writes to `financeTargets` — for Tabungan that must stay
+ * the grand total, or editing the currently-displayed "Rp10jt" stage would
+ * silently overwrite the real Rp100jt goal.
+ */
+function FundCard({ testId, label, current, target, editTarget, onSetTarget, milestones }) {
   const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
   return (
     <Card data-testid={`fund-card-${testId}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="eyebrow">{label}</div>
-        <TargetEditor target={target} onSave={onSetTarget} testId={testId} />
+        <TargetEditor target={editTarget ?? target} onSave={onSetTarget} testId={testId} />
       </div>
       <div className="mt-2 flex items-baseline gap-2">
         <div className="h-display text-[26px] text-forest-500 dark:text-lime">{formatIDRShort(current)}</div>
@@ -589,6 +612,108 @@ function TargetEditor({ target, onSave, testId }) {
   );
 }
 
+const REMINDER_CADENCES = [
+  { key: "monthly", label: "monthly" },
+  { key: "quarterly", label: "quarterly" },
+  { key: "yearly", label: "yearly" },
+  { key: "once", label: "once" },
+];
+
+function ReminderRow({ reminder: r, onToggle, onSave, onRemove }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(null);
+
+  function startEdit() {
+    setDraft({ title: r.title, amount: r.amount ?? "", dueDay: r.dueDay, cadence: r.cadence });
+    setEditing(true);
+  }
+
+  function commit() {
+    if (!draft.title.trim()) return;
+    onSave({
+      title: draft.title.trim(),
+      amount: draft.amount === "" ? null : Number(draft.amount),
+      dueDay: Number(draft.dueDay) || 1,
+      cadence: draft.cadence,
+    });
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <li className="rounded-xl border border-forest-500/50 dark:border-lime/50 p-4 grid gap-2" data-testid={`reminder-edit-${r.id}`}>
+        <input
+          value={draft.title}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          className="input"
+          placeholder="Judul reminder"
+          data-testid="reminder-edit-title"
+        />
+        <div className="grid grid-cols-3 gap-2">
+          <input
+            type="number"
+            min="0"
+            value={draft.amount}
+            onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+            className="input"
+            placeholder="Nominal (opsional)"
+            data-testid="reminder-edit-amount"
+          />
+          <input
+            type="number"
+            min="1"
+            max="31"
+            value={draft.dueDay}
+            onChange={(e) => setDraft({ ...draft, dueDay: e.target.value })}
+            className="input"
+            data-testid="reminder-edit-dueday"
+          />
+          <select
+            value={draft.cadence}
+            onChange={(e) => setDraft({ ...draft, cadence: e.target.value })}
+            className="input"
+            data-testid="reminder-edit-cadence"
+          >
+            {REMINDER_CADENCES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={commit} className="btn-dark text-[12px]" data-testid="reminder-edit-save">
+            <CheckIcon className="h-3.5 w-3.5" /> Simpan
+          </button>
+          <button onClick={() => setEditing(false)} className="btn-ghost text-[12px]" data-testid="reminder-edit-cancel">
+            <XIcon className="h-3.5 w-3.5" /> Batal
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className={clsx(
+      "rounded-xl border p-4 flex items-start gap-3",
+      r.active ? "border-line dark:border-night-border bg-card dark:bg-night-card" : "border-line/50 opacity-60"
+    )}>
+      <span className={clsx("mt-1 h-2.5 w-2.5 rounded-full", r.active ? "bg-terracotta" : "bg-line")} />
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-medium">{r.title}</div>
+        <div className="text-[11px] text-ink-muted">
+          {r.amount ? formatIDR(r.amount) : "Ikuti nominal masukan"} · setiap tanggal {r.dueDay} · {r.cadence}
+        </div>
+      </div>
+      <button onClick={startEdit} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50 text-ink-muted hover:text-ink dark:hover:text-night-text" aria-label="Edit" data-testid={`edit-reminder-${r.id}`}>
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button onClick={onToggle} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50" aria-label="Toggle">
+        {r.active ? <Power className="h-3.5 w-3.5 text-forest-500" /> : <PowerOff className="h-3.5 w-3.5 text-ink-muted" />}
+      </button>
+      <button onClick={onRemove} className="grid place-items-center h-11 w-11 -my-2 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta" aria-label="Hapus">
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </li>
+  );
+}
+
 function Scorecard({ label, value, hint, tone }) {
   return (
     <div className="rounded-xl border border-line dark:border-night-border p-5 bg-card dark:bg-night-card">
@@ -602,31 +727,6 @@ function Scorecard({ label, value, hint, tone }) {
       </div>
       <div className="text-[10.5px] text-ink-muted mt-1.5">{hint}</div>
     </div>
-  );
-}
-
-function SavingsRing({ pct }) {
-  const size = 118;
-  const stroke = 10;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c * (1 - pct / 100);
-  return (
-    <svg width={size} height={size}>
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="#3d5f4d" strokeWidth={stroke} fill="none" />
-      <motion.circle
-        cx={size / 2} cy={size / 2} r={r}
-        stroke="#d5eb7e" strokeWidth={stroke} fill="none" strokeLinecap="round"
-        strokeDasharray={c}
-        initial={{ strokeDashoffset: c }}
-        animate={{ strokeDashoffset: offset }}
-        transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
-      <text x="50%" y="52%" textAnchor="middle" fontFamily="Playfair Display" fontSize="24" fill="#f5f2ea">
-        {pct}%
-      </text>
-    </svg>
   );
 }
 

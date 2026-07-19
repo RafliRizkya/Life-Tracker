@@ -129,10 +129,14 @@ export default function QuickAddModal() {
           : {}),
       });
     } else if (type === "transaction") {
+      // "Tabungan"/"Dana Darurat" are Tipe options for the user, but under
+      // the hood they're still an expense in a dedicated category — that's
+      // what keeps them excluded from Pengeluaran (NON_SPENDING_CATEGORIES).
+      const isFundType = form.txType === "saving" || form.txType === "emergency_fund";
       addTransaction({
         title: form.title,
-        type: form.txType,
-        category: form.category || (form.txType === "income" ? "salary" : "daily"),
+        type: isFundType ? "expense" : form.txType,
+        category: isFundType ? form.txType : (form.category || (form.txType === "income" ? "salary" : "daily")),
         amount: Number(form.amount) || 0,
         date: form.date,
         notes: form.notes,
@@ -349,20 +353,29 @@ export default function QuickAddModal() {
                       <select value={form.txType} onChange={(e) => up("txType", e.target.value)} className="input" data-testid="tx-type">
                         <option value="income">Pemasukan</option>
                         <option value="expense">Pengeluaran</option>
+                        <option value="saving">Tabungan</option>
+                        <option value="emergency_fund">Dana Darurat</option>
                       </select>
                     </Field>
-                    <Field label="Kategori">
-                      <select value={form.category} onChange={(e) => up("category", e.target.value)} className="input" data-testid="tx-category">
-                        <option value="">Auto</option>
-                        {TX_CATEGORIES[form.txType].map((c) => (
-                          <option key={c.key} value={c.key}>{c.label}</option>
-                        ))}
-                      </select>
-                    </Field>
+                    {form.txType !== "saving" && form.txType !== "emergency_fund" && (
+                      <Field label="Kategori">
+                        <select value={form.category} onChange={(e) => up("category", e.target.value)} className="input" data-testid="tx-category">
+                          <option value="">Auto</option>
+                          {TX_CATEGORIES[form.txType].map((c) => (
+                            <option key={c.key} value={c.key}>{c.label}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
                     <Field label="Tanggal">
                       <input type="date" value={form.date} onChange={(e) => up("date", e.target.value)} className="input" />
                     </Field>
                   </div>
+                  {(form.txType === "saving" || form.txType === "emergency_fund") && (
+                    <p className="text-[10.5px] text-ink-muted -mt-1.5">
+                      Terpisah dari Pengeluaran — dilacak di kartu {form.txType === "saving" ? "Tabungan" : "Dana Darurat"} pada Finance.
+                    </p>
+                  )}
                   <Field label="Jumlah (IDR)">
                     <input type="number" min="0" value={form.amount} onChange={(e) => up("amount", e.target.value)} className="input" placeholder="0" data-testid="tx-amount" />
                   </Field>

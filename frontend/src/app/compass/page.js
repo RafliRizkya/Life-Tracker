@@ -9,6 +9,7 @@ import { formatDateID, MONTHS_ID_LONG } from "@/lib/format";
 import { EmptyState } from "@/components/ui";
 import { MoodPicker } from "@/components/compass/MoodPicker";
 import WeeklyRitual from "@/components/compass/WeeklyRitual";
+import AIReflectionResponse from "@/components/compass/AIReflectionResponse";
 import {
   Compass,
   Feather,
@@ -29,8 +30,10 @@ import {
 import { nanoid } from "nanoid";
 import clsx from "clsx";
 
+// 2026-07-19: "Ritual Mingguan" and "Berbenah" merged into one menu item —
+// they served the same purpose (weekly check-in / write a reflection), just
+// as two separate top-level tabs. Single name: "Berbenah".
 const TABS = [
-  { key: "ritual", label: "Ritual Mingguan" },
   { key: "compose", label: "Berbenah" },
   { key: "timeline", label: "Timeline" },
   { key: "wins", label: "Wins & Gratitude" },
@@ -38,7 +41,7 @@ const TABS = [
 ];
 
 export default function CompassPage() {
-  const [tab, setTab] = useState("ritual");
+  const [tab, setTab] = useState("compose");
   const {
     reflections, wins, letters, goals, skills, commitments, reviews,
   } = useLifeStore();
@@ -100,8 +103,7 @@ export default function CompassPage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.35 }}
         >
-          {tab === "ritual" && <WeeklyRitual />}
-          {tab === "compose" && <ComposeSection pattern={pattern} />}
+          {tab === "compose" && <BerbenahSection pattern={pattern} />}
           {tab === "timeline" && <TimelineSection />}
           {tab === "wins" && <WinsSection />}
           {tab === "letters" && <LettersSection />}
@@ -140,6 +142,28 @@ function PatternBanner({ insights }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------------- */
+/* Berbenah — merged "Ritual Mingguan" + "Berbenah" (2026-07-19)          */
+/* --------------------------------------------------------------------- */
+
+function BerbenahSection({ pattern }) {
+  const [mode, setMode] = useState("reflect"); // reflect | ritual
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-6">
+        <ModeChip active={mode === "reflect"} onClick={() => setMode("reflect")}>
+          Tulis Refleksi
+        </ModeChip>
+        <ModeChip active={mode === "ritual"} onClick={() => setMode("ritual")}>
+          Ritual Mingguan
+        </ModeChip>
+      </div>
+      {mode === "reflect" ? <ComposeSection pattern={pattern} /> : <WeeklyRitual />}
     </div>
   );
 }
@@ -258,6 +282,7 @@ function QuickForm() {
   const [draft, setDraft, status, clear] = useAutosaveDraft(AUTOSAVE_KEY + "::quick", initialDraft);
   const addReflection = useLifeStore((s) => s.addReflection);
   const [saved, setSaved] = useState(false);
+  const [aiPayload, setAiPayload] = useState(null);
 
   function submit(e) {
     e.preventDefault();
@@ -283,10 +308,18 @@ function QuickForm() {
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2400);
+
+    const text = [draft.currentState, draft.whatWentWell, draft.whatFeltHeavy, draft.lesson, draft.smallStep]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join("\n\n");
+    if (text) setAiPayload({ text, moodWord: draft.moodWord || undefined });
+
     clear();
   }
 
   return (
+    <div className="grid gap-6">
     <form onSubmit={submit} className="grid gap-5" data-testid="quick-reflection-form">
       <AutosaveTag status={status} />
       <MoodPicker value={draft.moodWord} onChange={(v) => setDraft({ ...draft, moodWord: v })} />
@@ -340,6 +373,8 @@ function QuickForm() {
         {saved && <span className="text-[12px] text-forest-500 dark:text-lime">Tersimpan ✓</span>}
       </div>
     </form>
+    <AIReflectionResponse payload={aiPayload} />
+    </div>
   );
 }
 
@@ -359,6 +394,7 @@ function DeepForm({ templateKey }) {
   );
   const addReflection = useLifeStore((s) => s.addReflection);
   const [saved, setSaved] = useState(false);
+  const [aiPayload, setAiPayload] = useState(null);
 
   function submit(e) {
     e.preventDefault();
@@ -379,10 +415,15 @@ function DeepForm({ templateKey }) {
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2400);
+
+    const text = Object.values(draft.answers || {}).map((s) => (s || "").trim()).filter(Boolean).join("\n\n");
+    if (text) setAiPayload({ text, moodWord: draft.moodWord || undefined });
+
     clear();
   }
 
   return (
+    <div className="grid gap-6">
     <form onSubmit={submit} className="grid gap-5" data-testid={`deep-reflection-form-${templateKey}`}>
       <div
         className="rounded-2xl p-5"
@@ -420,6 +461,8 @@ function DeepForm({ templateKey }) {
         {saved && <span className="text-[12px] text-forest-500 dark:text-lime">Tersimpan ✓</span>}
       </div>
     </form>
+    <AIReflectionResponse payload={aiPayload} />
+    </div>
   );
 }
 

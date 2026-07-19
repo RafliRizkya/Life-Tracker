@@ -528,6 +528,12 @@ export const useLifeStore = create((set, get) => ({
     });
     get().persist();
   },
+  updateReminder: (id, patch) => {
+    set({
+      reminders: get().reminders.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    });
+    get().persist();
+  },
   removeReminder: (id) => {
     set({ reminders: get().reminders.filter((r) => r.id !== id) });
     get().persist();

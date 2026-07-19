@@ -998,12 +998,13 @@ export function buildInitialState() {
     wins: seedWins,
     letters: seedLetters,
     // Dana Darurat + Tabungan: tracked separately from spending, own
-    // user-settable targets. `baseline` is savings/emergency-fund value
-    // from before this app started tracking; current = baseline + sum of
-    // matching-category transactions (fundCurrent() in insights.js).
+    // user-settable targets. current = pure sum of matching-category
+    // transactions (fundCurrent() in insights.js) — no baseline/starting
+    // number. 2026-07-19: a seeded baseline was removed after it read as an
+    // unexplained "phantom" number not backed by any visible transaction.
     financeTargets: {
-      emergencyFund: { target: 10_000_000, baseline: 0 },
-      savings: { target: 100_000_000, baseline: 8_400_000 },
+      emergencyFund: { target: 10_000_000 },
+      savings: { target: 100_000_000 },
     },
     settings: {
       theme: "light",

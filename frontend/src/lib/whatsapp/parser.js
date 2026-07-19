@@ -25,6 +25,7 @@ const CATEGORY_RULES = {
     { match: ["kursus", "buku", "belajar"], key: "learning" },
     { match: ["laptop", "device", "charger"], key: "device" },
     { match: ["nabung", "tabungan"], key: "saving" },
+    { match: ["dana darurat", "darurat"], key: "emergency_fund" },
     { match: ["sedekah", "donasi", "zakat"], key: "charity" },
     { match: ["bpjs"], key: "bpjs" },
     { match: ["servis", "service", "motor"], key: "service" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
 import { MoodPicker } from "./MoodPicker";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/lib/insights";
 import { formatDateID } from "@/lib/format";
 import { Sparkles, BatteryMedium, Flame, ChevronRight, ArrowUpRight, Check, CornerDownRight, X } from "lucide-react";
+import AIReflectionResponse from "./AIReflectionResponse";
 import clsx from "clsx";
 
 function currentWeekLabel() {
@@ -76,6 +77,8 @@ export default function WeeklyRitual() {
 
   const [form, setForm] = useState({ ...EMPTY_FORM, highlights: draft });
   const [saved, setSaved] = useState(false);
+  const [aiPayload, setAiPayload] = useState(null);
+  const [selectedReview, setSelectedReview] = useState(null);
 
   function toggle(list, id) {
     return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -107,6 +110,20 @@ export default function WeeklyRitual() {
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+
+    const text = [form.highlights, form.blockers, form.finance, form.careerProgress]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join("\n\n");
+    if (text) {
+      setAiPayload({
+        text,
+        moodWord: form.moodWord || undefined,
+        energyLevel: form.energyLevel ?? undefined,
+        stressLevel: form.stressLevel ?? undefined,
+      });
+    }
+
     setForm(EMPTY_FORM);
   }
 
@@ -332,33 +349,131 @@ export default function WeeklyRitual() {
         </div>
       </form>
 
+      <AIReflectionResponse payload={aiPayload} />
+
       {reviews.length > 0 && (
         <section className="mt-4">
           <div className="eyebrow">Histori ritual</div>
           <h3 className="h-display text-[22px] mt-1 mb-4">Cerita minggu-mingguku</h3>
           <ul className="space-y-3">
             {reviews.map((r) => (
-              <li key={r.id} className="rounded-xl border border-line dark:border-night-border p-4 bg-card dark:bg-night-card">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-ink-muted">{formatDateID(r.weekOf)}</span>
-                    {r.moodWord && <span className="chip">{r.moodWord}</span>}
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReview(r)}
+                  data-testid={`ritual-history-${r.id}`}
+                  className="w-full text-left rounded-xl border border-line dark:border-night-border p-4 bg-card dark:bg-night-card hover:shadow-pop transition-shadow"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-ink-muted">{formatDateID(r.weekOf)}</span>
+                      {r.moodWord && <span className="chip">{r.moodWord}</span>}
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-ink-muted" />
                   </div>
-                  <ChevronRight className="h-4 w-4 text-ink-muted" />
-                </div>
-                {r.highlights && (
-                  <p className="mt-2 text-[13px] text-ink-soft italic">&ldquo;{r.highlights}&rdquo;</p>
-                )}
-                {r.nextWeekFocus?.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {r.nextWeekFocus.map((f, i) => <span key={i} className="chip">{f}</span>)}
-                  </div>
-                )}
+                  {r.highlights && (
+                    <p className="mt-2 text-[13px] text-ink-soft italic line-clamp-2">&ldquo;{r.highlights}&rdquo;</p>
+                  )}
+                  {r.nextWeekFocus?.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {r.nextWeekFocus.map((f, i) => <span key={i} className="chip">{f}</span>)}
+                    </div>
+                  )}
+                </button>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <AnimatePresence>
+        {selectedReview && (
+          <ReviewDetail review={selectedReview} onClose={() => setSelectedReview(null)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ReviewDetail({ review: r, onClose }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-ink/50 dark:bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.aside
+        initial={{ x: 480 }}
+        animate={{ x: 0 }}
+        exit={{ x: 480 }}
+        transition={{ type: "spring", damping: 24, stiffness: 240 }}
+        onClick={(e) => e.stopPropagation()}
+        className="fixed top-0 right-0 h-full w-full max-w-lg bg-paper dark:bg-night border-l border-line dark:border-night-border overflow-y-auto"
+        data-testid="ritual-history-detail-drawer"
+      >
+        <div className="sticky top-0 flex items-center justify-between p-5 bg-paper/95 dark:bg-night/95 backdrop-blur border-b border-line dark:border-night-border">
+          <div className="min-w-0">
+            <div className="eyebrow">Ritual mingguan</div>
+            <div className="h-display text-[22px] mt-1">{formatDateID(r.weekOf)}</div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-line/50" data-testid="close-ritual-history-detail">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-6 md:p-8 space-y-6">
+          {r.moodWord && (
+            <div>
+              <div className="eyebrow mb-1">Mood</div>
+              <div className="font-reflect italic text-[22px] text-forest-500 dark:text-lime">{r.moodWord}</div>
+            </div>
+          )}
+          {(r.energyLevel != null || r.stressLevel != null) && (
+            <div className="flex gap-6">
+              {r.energyLevel != null && (
+                <div>
+                  <div className="eyebrow mb-1">Energi</div>
+                  <div className="h-display text-[20px]">{r.energyLevel}/5</div>
+                </div>
+              )}
+              {r.stressLevel != null && (
+                <div>
+                  <div className="eyebrow mb-1">Stres</div>
+                  <div className="h-display text-[20px]">{r.stressLevel}/5</div>
+                </div>
+              )}
+            </div>
+          )}
+          <ReadOnlyField label="Cerita minggu ini" value={r.highlights} serif />
+          <ReadOnlyField label="Apa yang menghambat?" value={r.blockers} />
+          <ReadOnlyField label="Refleksi keuangan" value={r.finance} />
+          <ReadOnlyField label="Progres karier / skill" value={r.careerProgress} />
+          {r.nextWeekFocus?.length > 0 && (
+            <div>
+              <div className="eyebrow mb-2">Fokus minggu depan (saat itu)</div>
+              <div className="flex flex-wrap gap-1.5">
+                {r.nextWeekFocus.map((f, i) => <span key={i} className="chip">{f}</span>)}
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.aside>
+    </motion.div>
+  );
+}
+
+function ReadOnlyField({ label, value, serif }) {
+  if (!value) return null;
+  return (
+    <div>
+      <div className="eyebrow mb-1.5">{label}</div>
+      <p className={clsx(
+        "text-[14px] text-ink-soft leading-[1.8] whitespace-pre-wrap",
+        serif && "font-reflect italic text-[16px]"
+      )}>
+        {value}
+      </p>
     </div>
   );
 }

@@ -122,15 +122,16 @@ export function goalKind(goal) {
 
 /**
  * Dana Darurat / Tabungan aren't spending — they're funds with their own
- * user-set target, tracked from a dedicated category (see
- * NON_SPENDING_CATEGORIES). `fund.baseline` is whatever was already saved
- * before this app started tracking; every matching transaction adds on top.
+ * user-set target, tracked purely from a dedicated category's transactions
+ * (see NON_SPENDING_CATEGORIES). No baseline/starting number — current is
+ * exactly the sum of what you've actually logged, nothing else (2026-07-19:
+ * a seeded baseline was removed after it read as an unexplained "phantom"
+ * amount not backed by any visible transaction).
  */
-export function fundCurrent(fund, transactions, categoryKey) {
-  const tracked = transactions
+export function fundCurrent(transactions, categoryKey) {
+  return transactions
     .filter((t) => t.type === "expense" && t.category === categoryKey)
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  return (fund?.baseline ?? 0) + tracked;
 }
 
 /** Even Rp10-juta-step milestones up to target — "10jt, 20jt, 30jt, dst." */
@@ -144,19 +145,24 @@ export function fundMilestones(target) {
 
 /**
  * The "Tabungan bertahap" goal looks up Finance's Tabungan fund as its
- * single source of truth (2026-07-19) — current/target/milestones all come
- * from `financeTargets.savings`, not from the goal's own `metric`. Falls
- * back to the pre-2026-07-19 goal-based reading if financeTargets is
- * somehow absent (defensive — every hydrate path backfills it).
+ * single source of truth — current/milestones come from `financeTargets.savings`,
+ * not the goal's own `metric`. Falls back to the pre-2026-07-19 goal-based
+ * reading if financeTargets is somehow absent (defensive — every hydrate
+ * path backfills it).
+ *
+ * `target`/`pct` are staged, not the grand total (2026-07-19): only the
+ * next unachieved milestone is the active target — "show Rp10jt first, once
+ * hit unlock Rp20jt" — so progress climbs 0→100% per stage instead of
+ * crawling from 0% toward a Rp100jt ceiling the whole time. `grandTarget` is
+ * still available for anywhere that wants the ultimate number.
  */
 export function savingsProgress(goals, transactions, financeTargets) {
   const savingsGoal = goals.find((g) => g.id === "goal-savings-ladder");
   if (!savingsGoal) return null;
   const fund = financeTargets?.savings;
-  const current = fund ? fundCurrent(fund, transactions, "saving") : linkedGoalCurrent(savingsGoal, transactions);
-  const target = fund?.target ?? savingsGoal.metric?.target ?? 100_000_000;
-  const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
-  const milestoneTargets = fund ? fundMilestones(target) : (savingsGoal.milestones || []).map((m) => m.target);
+  const current = fund ? fundCurrent(transactions, "saving") : linkedGoalCurrent(savingsGoal, transactions);
+  const grandTarget = fund?.target ?? savingsGoal.metric?.target ?? 100_000_000;
+  const milestoneTargets = fund ? fundMilestones(grandTarget) : (savingsGoal.milestones || []).map((m) => m.target);
   const milestones = milestoneTargets.map((t) => ({
     id: `m-${t}`,
     label: `Rp ${(t / 1_000_000).toFixed(0)} juta`,
@@ -165,7 +171,9 @@ export function savingsProgress(goals, transactions, financeTargets) {
   }));
   const nextIdx = milestones.findIndex((m) => !m.achieved);
   const next = nextIdx >= 0 ? milestones[nextIdx] : null;
-  return { current, target, pct, milestones, next };
+  const target = next ? next.target : grandTarget; // every stage cleared — show the final total
+  const pct = Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+  return { current, target, grandTarget, pct, milestones, next };
 }
 
 /* ---------- Career readiness ---------- */

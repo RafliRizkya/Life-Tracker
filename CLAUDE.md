@@ -188,6 +188,8 @@ Test realistic user flows.
 
 Do not change navigation structure without explicit approval. (Reflection and Weekly Review were merged into Life Compass on 2026-07-18 with explicit sign-off — `/reflection` and `/review` now redirect to `/compass`. Treat the module list above as current; don't merge/split further without asking again.)
 
+Within Life Compass specifically: its "Ritual Mingguan" and "Berbenah" tabs were further merged into one tab, "Berbenah", on 2026-07-19 with explicit sign-off (same rationale — both were a weekly check-in / write-a-reflection flow, just two separate tabs). It now holds an internal mode toggle ("Tulis Refleksi" / "Ritual Mingguan") instead of two top-level tabs. Life Compass's top-level tab set is now: Berbenah, Timeline, Wins & Gratitude, Surat untuk Diri. Same rule applies — don't restructure Life Compass's tabs further without asking again.
+
 ---
 
 ## Language
@@ -242,11 +244,17 @@ Dashboard/rule-based insights (unchanged): rule-based only, via `buildInsights()
 
 **Chat assistant (built, ahead of the original roadmap):** `/ai` — a free-tier-only OpenRouter streaming Q&A assistant over Finance/Goals/Career/Skills/Life Compass data. Read-only, no write capability. Full status, architecture, and privacy verification: `docs/features/ai-assistant.md`.
 
-**AI action-plan generator (Goals & Skills)** and **AI financial planner (Finance)**: two additional AI surfaces, both **suggest-only — the AI itself never writes to the store.** Each returns a suggestion (step list / budget plan) that the UI shows for review; saving only happens when the user clicks an explicit "apply" action, which then runs a normal existing store action (`addCommitment`, `onUpdate({ plan })`, `upsertBudget`) — the exact same write path a manual add already uses. This preserves the chat assistant's "AI never writes" boundary while still letting these two surfaces produce actionable output. Full detail: `docs/features/ai-action-plan-and-financial-planner.md`.
+**AI action-plan generator (Goals & Skills)** and **AI financial planner (Finance)**: two additional AI surfaces, both **suggest-only — the AI itself never writes to the store.** Each returns a suggestion (step list / budget plan) that the UI shows for review; saving only happens when the user clicks an explicit "apply" action, which then runs a normal existing store action (`addCommitment`, `onUpdate({ plan })`) — the exact same write path a manual add already uses. This preserves the chat assistant's "AI never writes" boundary while still letting these two surfaces produce actionable output. (The financial planner's per-category advice lost its "apply" button on 2026-07-19 when budgets became category-less — see Persistence/Finance notes below; the advice itself is still shown, just informational now.) Full detail: `docs/features/ai-action-plan-and-financial-planner.md`.
+
+**AI reflection response** (`/api/ai/reflection-response`, 2026-07-19): after submitting a reflection or weekly ritual entry in Life Compass → Berbenah, the AI reads that single just-submitted entry's raw text and returns one short empathetic response (2-4 sentences). **This is a deliberate, narrow, user-confirmed exception** to the "raw reflection text never reaches an LLM" rule below — confirmed directly via `AskUserQuestion` (2026-07-19) that real empathy needs the actual words, not just mood/stress numbers. Exception is scoped tightly:
+- Only the one entry the client sends in that one request — never history, never other reflections, never routed through `contextBuilder.js` (the chat assistant / action-plan / financial-planner context pipeline is completely untouched by this route).
+- Nothing is logged or persisted server-side beyond generating the response.
+- Suggest-only in spirit too: it's a response to read, not a write — nothing is saved back to the reflection/review record.
+- Full detail: `docs/features/finance-and-compass-rework.md`.
 
 - Never call a paid OpenRouter model — free-tier only, no exceptions.
 - `frontend/src/lib/ai/openrouter.js` and the OpenRouter/model env vars are server-only — never import into a `"use client"` file, never expose to the browser.
-- Raw reflection/letter/weekly-review body text must never be assembled into outbound LLM context, regardless of intent — only aggregated `reflectionInsights()`/`reviewInsights()` output. This is verified at the network layer, not just by code review — see the doc above before changing `contextBuilder.js`.
+- Raw reflection/letter/weekly-review body text must never be assembled into outbound LLM context for the chat assistant, action-plan generator, or financial planner, regardless of intent — only aggregated `reflectionInsights()`/`reviewInsights()` output. This is verified at the network layer, not just by code review — see `docs/features/ai-assistant.md` before changing `contextBuilder.js`. The one narrow, explicit exception is `/api/ai/reflection-response` above — don't extend raw-text access to any other route without asking again.
 - Any new AI-generation surface must stay suggest-only unless explicitly asked to write directly — this was a deliberate decision (see `docs/PROJECT_MEMORY.md` 2026-07-19 entry), not a default to silently change.
 
 ---
