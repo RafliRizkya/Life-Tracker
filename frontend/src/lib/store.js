@@ -57,11 +57,9 @@ function loadFromStorage() {
 
 function saveToStorage(state) {
   if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* quota exceeded — ignore */
-  }
+  // Let quota/private-mode errors propagate — persist() surfaces them,
+  // swallowing here silently loses the user's just-made change.
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 /**
@@ -119,7 +117,7 @@ export const useLifeStore = create((set, get) => ({
       });
     } else {
       set({ hydrated: true });
-      saveToStorage(persistableSlice(get()));
+      get().persist();
     }
   },
   persist: () => {
@@ -135,6 +133,24 @@ export const useLifeStore = create((set, get) => ({
       }, 250);
     } catch {
       set({ saveStatus: "failed" });
+      // Don't route through get().persist() here — it would recurse if
+      // storage keeps failing. Push the warning directly instead.
+      if (!get().notifications.some((n) => n.id === "save-failed")) {
+        set({
+          notifications: [
+            {
+              id: "save-failed",
+              userId: USER_ID,
+              title: "Penyimpanan gagal",
+              body: "Perubahan terakhir tidak tersimpan di perangkat ini. Storage browser mungkin penuh atau kamu sedang di mode privasi.",
+              tone: "warning",
+              read: false,
+              createdAt: nowISO(),
+            },
+            ...get().notifications,
+          ],
+        });
+      }
     }
   },
   reseed: () => {

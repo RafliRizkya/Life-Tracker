@@ -13,23 +13,38 @@ function byStart(a, b) {
   return a.year * 12 + (a.month || 0) - (b.year * 12 + (b.month || 0));
 }
 
+const ROW_HEIGHT = 128;
+const X_ANCHORS = [22, 50, 78]; // zigzag: left, center, right (% of trail width)
+
+/** Smooth S-curve through a sequence of {x,y} points — flowchart-style bezier per segment. */
+function buildPath(points) {
+  if (points.length < 2) return "";
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const p0 = points[i - 1];
+    const p1 = points[i];
+    const midY = (p0.y + p1.y) / 2;
+    d += ` C ${p0.x} ${midY}, ${p1.x} ${midY}, ${p1.x} ${p1.y}`;
+  }
+  return d;
+}
+
 /**
- * Dual-track career map: Professional Path (jobs) on the left, Milestones
- * Path (education/certificates/other) on the right — each its own simple
- * vertical timeline with a connector line and card, so title/date/preview
- * are always visible without a click.
+ * Single-track "skill map" trail: a winding path (SVG S-curve through fixed
+ * zigzag anchor points) with game-style circular nodes, one track rendered
+ * at a time (`track` prop) — the caller (career/page.js) switches tracks via
+ * a segmented control instead of showing both side by side.
  *
  * Motion is state-tied (Linear reference): only milestones added *during this
- * session* animate in; the initial render lands static. The card that opened
- * the drawer stays visibly selected while it's open.
+ * session* pop in; the initial render lands static. The in-progress node
+ * pulses to read as "you are here" on the map; the path itself is solid up
+ * to the last non-planned node and dashed/muted beyond it (locked ahead).
  */
-export default function CareerTrail({ milestones, onSelect, selectedId }) {
+export default function CareerTrail({ milestones, track, onSelect, selectedId }) {
   const storeReducedMotion = useLifeStore((s) => s.settings.reducedMotion);
   const osReducedMotion = useReducedMotion();
   const reducedMotion = storeReducedMotion || osReducedMotion;
 
-  // Milestones not present on the previous render are "new" — nothing is new
-  // on first mount, so the initial page load stays still.
   const idsKey = milestones.map((m) => m.id).join(",");
   const prevIdsRef = useRef(null);
   if (prevIdsRef.current === null || prevIdsRef.current.key !== idsKey) {
@@ -44,7 +59,7 @@ export default function CareerTrail({ milestones, onSelect, selectedId }) {
   }
   const newIds = prevIdsRef.current.newIds;
 
-  const { experience, milestone } = useMemo(() => {
+  const items = useMemo(() => {
     const experience = [];
     const milestone = [];
     for (const m of milestones) {
@@ -52,62 +67,85 @@ export default function CareerTrail({ milestones, onSelect, selectedId }) {
     }
     experience.sort(byStart);
     milestone.sort(byStart);
-    return { experience, milestone };
-  }, [milestones]);
+    return track === "experience" ? experience : milestone;
+  }, [milestones, track]);
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-10">
-      <TrailLane
-        label="Jejak Profesional"
-        hint="Pengalaman kerja, kronologis"
-        items={experience}
-        variant="experience"
-        onSelect={onSelect}
-        selectedId={selectedId}
-        newIds={newIds}
-        reducedMotion={reducedMotion}
-      />
-      <TrailLane
-        label="Milestone & Pencapaian"
-        hint="Pendidikan, sertifikasi, capaian lain"
-        items={milestone}
-        variant="milestone"
-        onSelect={onSelect}
-        selectedId={selectedId}
-        newIds={newIds}
-        reducedMotion={reducedMotion}
-      />
-    </div>
+  const points = useMemo(
+    () =>
+      items.map((m, i) => ({
+        m,
+        x: X_ANCHORS[i % X_ANCHORS.length],
+        y: i * ROW_HEIGHT + ROW_HEIGHT / 2,
+      })),
+    [items]
   );
-}
 
-function TrailLane({ label, hint, items, variant, onSelect, selectedId, newIds, reducedMotion }) {
+  const totalHeight = items.length * ROW_HEIGHT;
+  const lastActiveIdx = points.reduce((acc, p, i) => (p.m.status !== "planned" ? i : acc), -1);
+
+  const fullPathD = useMemo(() => buildPath(points), [points]);
+  const activePathD = useMemo(
+    () => (lastActiveIdx > 0 ? buildPath(points.slice(0, lastActiveIdx + 1)) : ""),
+    [points, lastActiveIdx]
+  );
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-line dark:border-night-border p-8 text-center text-[12px] text-ink-muted">
+        Belum ada catatan di jalur ini.
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div className="eyebrow">{label}</div>
-      <div className="text-[11px] text-ink-muted mt-0.5">{hint}</div>
-
-      {items.length === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed border-line dark:border-night-border p-6 text-center text-[12px] text-ink-muted">
-          Belum ada catatan di jalur ini.
-        </div>
-      ) : (
-        <ul className="mt-4 border-l-2 border-line dark:border-night-border ml-1.5 space-y-4">
-          <AnimatePresence mode="sync">
-            {items.map((m) => (
-              <TrailCard
-                key={m.id}
-                milestone={m}
-                variant={variant}
-                isNew={newIds.has(m.id)}
-                isSelected={m.id === selectedId}
-                reducedMotion={reducedMotion}
-                onSelect={onSelect}
-              />
-            ))}
-          </AnimatePresence>
-        </ul>
+    <div className="relative mx-auto max-w-md" style={{ height: totalHeight }}>
+      {points.length > 1 && (
+        <svg
+          className="absolute inset-0"
+          width="100%"
+          height={totalHeight}
+          viewBox={`0 0 100 ${totalHeight}`}
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <path
+            d={fullPathD}
+            fill="none"
+            className="text-line dark:text-night-border"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray="1 9"
+            vectorEffect="non-scaling-stroke"
+          />
+          {activePathD && (
+            <path
+              d={activePathD}
+              fill="none"
+              stroke="#315d48"
+              strokeWidth="3"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </svg>
       )}
+      <ul className="relative list-none m-0 p-0">
+        <AnimatePresence mode="sync">
+          {points.map(({ m, x, y }) => (
+            <TrailCard
+              key={m.id}
+              milestone={m}
+              x={x}
+              y={y}
+              isNew={newIds.has(m.id)}
+              isSelected={m.id === selectedId}
+              reducedMotion={reducedMotion}
+              onSelect={onSelect}
+            />
+          ))}
+        </AnimatePresence>
+      </ul>
     </div>
   );
 }

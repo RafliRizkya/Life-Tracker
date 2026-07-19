@@ -51,6 +51,45 @@ export function spendingByCategory(transactions, mk = currentMonthKey()) {
     .sort((a, b) => b.amount - a.amount);
 }
 
+/**
+ * Month → Week (4 buckets, contiguous day ranges) → Category budget breakdown.
+ * Week limits are computed by prorating each category's monthly limit by the
+ * bucket's share of days — no separate per-week budget schema needed.
+ */
+export function budgetWeeklyBreakdown(budgets, transactions, mk = currentMonthKey()) {
+  const monthBudgets = budgets.filter((b) => b.month === mk);
+  if (monthBudgets.length === 0) return [];
+
+  const [year, month] = mk.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const bucketSize = Math.ceil(daysInMonth / 4);
+
+  const weeks = [];
+  for (let w = 0; w < 4; w++) {
+    const startDay = w * bucketSize + 1;
+    if (startDay > daysInMonth) break;
+    const endDay = Math.min(daysInMonth, startDay + bucketSize - 1);
+    weeks.push({ key: `W${w + 1}`, label: `Minggu ${w + 1}`, startDay, endDay });
+  }
+
+  return weeks.map((w) => {
+    const daysInWeek = w.endDay - w.startDay + 1;
+    const categories = monthBudgets.map((b) => {
+      const spent = transactions
+        .filter((t) => {
+          if (t.type !== "expense" || t.category !== b.category) return false;
+          if (monthKey(t.date) !== mk) return false;
+          const day = Number(t.date.slice(8, 10));
+          return day >= w.startDay && day <= w.endDay;
+        })
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const allocated = Math.round((b.limit * daysInWeek) / daysInMonth);
+      return { category: b.category, budgetId: b.id, allocated, spent };
+    });
+    return { ...w, categories };
+  });
+}
+
 export function savingsProgress(goals, transactions) {
   const savingsGoal = goals.find((g) => g.id === "goal-savings-ladder");
   if (!savingsGoal) return null;

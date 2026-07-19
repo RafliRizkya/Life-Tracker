@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
 import { Card, Progress } from "@/components/ui";
 import {
-  monthlyTotals, last6MonthsSeries, spendingByCategory, savingsProgress,
+  monthlyTotals, last6MonthsSeries, spendingByCategory, savingsProgress, budgetWeeklyBreakdown,
 } from "@/lib/insights";
 import { TX_CATEGORIES } from "@/lib/seed";
-import { formatIDR, formatIDRShort, formatDateID, currentMonthKey } from "@/lib/format";
+import { formatIDR, formatIDRShort, formatDateID, currentMonthKey, formatMonthYear } from "@/lib/format";
 import {
-  Plus, Trash2, Download, TrendingUp, TrendingDown, AlertTriangle, PowerOff, Power,
+  Plus, Trash2, Download, TrendingUp, TrendingDown, AlertTriangle, PowerOff, Power, ChevronDown,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, LineChart, Line,
@@ -36,22 +36,20 @@ export default function FinancePage() {
   const savings = savingsProgress(goals, transactions);
 
   const [budgetDraft, setBudgetDraft] = useState({ category: "food", limit: "" });
+  const [monthOpen, setMonthOpen] = useState(true);
+  const [openWeek, setOpenWeek] = useState(null);
+  const storeReducedMotion = useLifeStore((s) => s.settings.reducedMotion);
+  const osReducedMotion = useReducedMotion();
+  const reducedMotion = storeReducedMotion || osReducedMotion;
 
   const prev = monthlyTotals(transactions, previousMonthKey());
   const trendPct = prev.income ? Math.round(((totals.income - prev.income) / prev.income) * 100) : 0;
 
-  const budgetsWithSpend = useMemo(() => {
-    const mk = currentMonthKey();
-    const spent = new Map();
-    transactions.forEach((t) => {
-      if (t.type !== "expense") return;
-      if (t.date.slice(0, 7) !== mk) return;
-      spent.set(t.category, (spent.get(t.category) || 0) + Number(t.amount));
-    });
-    return budgets
-      .filter((b) => b.month === mk)
-      .map((b) => ({ ...b, spent: spent.get(b.category) || 0 }));
-  }, [budgets, transactions]);
+  const weeklyBudget = useMemo(
+    () => budgetWeeklyBreakdown(budgets, transactions),
+    [budgets, transactions]
+  );
+  const monthBudgetCount = budgets.filter((b) => b.month === currentMonthKey()).length;
 
   return (
     <div className="max-w-6xl mx-auto px-5 md:px-8 pt-10 pb-24">
@@ -182,72 +180,144 @@ export default function FinancePage() {
             <h2 className="h-display text-[24px] mt-1">Batas yang bijak</h2>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {budgetsWithSpend.map((b) => {
-            const pct = Math.min(100, Math.round((b.spent / b.limit) * 100));
-            const over = b.spent > b.limit;
-            return (
-              <div key={b.id} className="rounded-xl border border-line dark:border-night-border p-4 bg-card dark:bg-night-card">
-                <div className="flex items-center justify-between">
-                  <div className="text-[13px] font-medium">{CATEGORY_LABELS[b.category] || b.category}</div>
-                  <button onClick={() => removeBudget(b.id)} className="text-ink-muted hover:text-terracotta">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <div className="mt-2.5 flex items-baseline gap-1.5">
-                  <span className="font-mono text-[15px] font-medium tabular-nums">{formatIDR(b.spent)}</span>
-                  <span className="text-[11px] text-ink-muted">/ {formatIDR(b.limit)}</span>
-                </div>
-                <Progress value={pct} tone={over ? "terra" : "forest"} className="mt-2.5" />
-                {over && (
-                  <div className="mt-2 text-[11.5px] text-terracotta inline-flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" /> Over budget {formatIDRShort(b.spent - b.limit)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!budgetDraft.limit) return;
-              upsertBudget({
-                category: budgetDraft.category,
-                limit: Number(budgetDraft.limit),
-                month: currentMonthKey(),
-              });
-              setBudgetDraft({ category: "food", limit: "" });
-            }}
-            className="rounded-xl border border-dashed border-line dark:border-night-border p-4 flex flex-col gap-2 justify-center"
-            data-testid="budget-form"
+
+        <div className="rounded-2xl border border-line dark:border-night-border overflow-hidden mb-3 bg-card dark:bg-night-card">
+          <button
+            type="button"
+            onClick={() => setMonthOpen((v) => !v)}
+            className="w-full flex items-center gap-3 p-4 text-left min-h-[44px]"
+            data-testid="budget-month-toggle"
+            aria-expanded={monthOpen}
           >
-            <div className="eyebrow">Tambah budget baru</div>
-            <div className="flex gap-2">
-              <select
-                value={budgetDraft.category}
-                onChange={(e) => setBudgetDraft({ ...budgetDraft, category: e.target.value })}
-                className="input"
-                data-testid="budget-category"
+            <span className="flex-1 text-[14px] font-medium">
+              {formatMonthYear(new Date().getMonth() + 1, new Date().getFullYear())}
+            </span>
+            <span className="text-[11px] text-ink-muted font-mono">{monthBudgetCount} kategori</span>
+            <ChevronDown className={clsx("h-4 w-4 text-ink-muted transition-transform flex-none", monthOpen && "rotate-180")} />
+          </button>
+
+          <AnimatePresence initial={false}>
+            {monthOpen && (
+              <motion.div
+                initial={reducedMotion ? false : { height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={reducedMotion ? undefined : { height: 0, opacity: 0 }}
+                transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }}
               >
-                {TX_CATEGORIES.expense.map((c) => (
-                  <option key={c.key} value={c.key}>{c.label}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min="0"
-                value={budgetDraft.limit}
-                onChange={(e) => setBudgetDraft({ ...budgetDraft, limit: e.target.value })}
-                placeholder="Limit (Rp)"
-                className="input"
-                data-testid="budget-limit"
-              />
-              <button className="btn-dark" type="submit" data-testid="budget-submit">
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </form>
+                <div className="border-t border-line dark:border-night-border divide-y divide-line dark:divide-night-border">
+                  {weeklyBudget.length === 0 ? (
+                    <div className="p-4 text-[12.5px] text-ink-muted">
+                      Belum ada budget bulan ini. Tambahkan lewat form di bawah.
+                    </div>
+                  ) : (
+                    weeklyBudget.map((w) => {
+                      const weekOpen = openWeek === w.key;
+                      const weekSpent = w.categories.reduce((s, c) => s + c.spent, 0);
+                      const weekAllocated = w.categories.reduce((s, c) => s + c.allocated, 0);
+                      const weekOver = weekSpent > weekAllocated;
+                      return (
+                        <div key={w.key}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenWeek(weekOpen ? null : w.key)}
+                            className="w-full flex items-center gap-3 p-4 pl-6 text-left min-h-[44px]"
+                            data-testid={`budget-week-toggle-${w.key}`}
+                            aria-expanded={weekOpen}
+                          >
+                            <span className="flex-1 text-[13px]">
+                              {w.label}{" "}
+                              <span className="text-ink-muted font-normal">· tgl {w.startDay}–{w.endDay}</span>
+                            </span>
+                            <span className={clsx("font-mono text-[11.5px] tabular-nums", weekOver ? "text-terracotta" : "text-ink-muted")}>
+                              {formatIDRShort(weekSpent)} / {formatIDRShort(weekAllocated)}
+                            </span>
+                            <ChevronDown className={clsx("h-3.5 w-3.5 text-ink-muted transition-transform flex-none", weekOpen && "rotate-180")} />
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {weekOpen && (
+                              <motion.div
+                                initial={reducedMotion ? false : { height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={reducedMotion ? undefined : { height: 0, opacity: 0 }}
+                                transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+                              >
+                                <ul className="pl-10 pr-4 pb-4 space-y-3">
+                                  {w.categories.map((c) => {
+                                    const pct = c.allocated > 0 ? Math.min(100, Math.round((c.spent / c.allocated) * 100)) : 0;
+                                    const over = c.spent > c.allocated;
+                                    return (
+                                      <li key={c.category}>
+                                        <div className="flex items-center justify-between gap-2 text-[12px]">
+                                          <span className="flex-1 truncate">{CATEGORY_LABELS[c.category] || c.category}</span>
+                                          <span className={clsx("font-mono tabular-nums", over ? "text-terracotta" : "text-ink-muted")}>
+                                            {formatIDR(c.spent)} / {formatIDR(c.allocated)}
+                                          </span>
+                                          <button
+                                            onClick={() => removeBudget(c.budgetId)}
+                                            className="grid place-items-center h-8 w-8 -my-1 -mr-1 rounded-md hover:bg-line/50 text-ink-muted hover:text-terracotta flex-none"
+                                            aria-label={`Hapus budget ${CATEGORY_LABELS[c.category] || c.category}`}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                        <Progress value={pct} tone={over ? "terra" : "forest"} className="mt-1.5" />
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!budgetDraft.limit) return;
+            upsertBudget({
+              category: budgetDraft.category,
+              limit: Number(budgetDraft.limit),
+              month: currentMonthKey(),
+            });
+            setBudgetDraft({ category: "food", limit: "" });
+          }}
+          className="rounded-xl border border-dashed border-line dark:border-night-border p-4 flex flex-col gap-2 justify-center max-w-md"
+          data-testid="budget-form"
+        >
+          <div className="eyebrow">Tambah budget baru</div>
+          <div className="flex gap-2">
+            <select
+              value={budgetDraft.category}
+              onChange={(e) => setBudgetDraft({ ...budgetDraft, category: e.target.value })}
+              className="input"
+              data-testid="budget-category"
+            >
+              {TX_CATEGORIES.expense.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              value={budgetDraft.limit}
+              onChange={(e) => setBudgetDraft({ ...budgetDraft, limit: e.target.value })}
+              placeholder="Limit (Rp)"
+              className="input"
+              data-testid="budget-limit"
+            />
+            <button className="btn-dark" type="submit" data-testid="budget-submit">
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </form>
       </section>
 
       {/* Reminders + Transactions */}

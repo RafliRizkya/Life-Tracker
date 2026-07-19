@@ -82,7 +82,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
             {user?.fullName?.[0] ?? "R"}
           </div>
           <div className="leading-tight">
-            <div className="font-semibold text-[13px]">{user?.fullName}</div>
+            <div className="font-semibold text-[13px]">{user?.fullName?.split(" ")[0] || "Rafli"}</div>
             <div className="text-[10.5px] text-forest-100/70">
               Building the next chapter
             </div>

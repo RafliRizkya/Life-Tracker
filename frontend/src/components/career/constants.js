@@ -14,3 +14,8 @@ export const STATUS_META = {
   in_progress: { label: "In progress", color: "#eb9b63" },
   planned: { label: "Planned", color: "#8a9a5b" },
 };
+
+export const TRACK_META = {
+  experience: { label: "Jejak Profesional", hint: "Pengalaman kerja, kronologis" },
+  milestone: { label: "Milestone & Pencapaian", hint: "Pendidikan, sertifikasi, capaian lain" },
+};

@@ -420,8 +420,7 @@ export default function DashboardPage() {
           <motion.div
             variants={container}
             initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-40px" }}
+            animate="show"
             className="grid grid-cols-1 md:grid-cols-2 gap-3"
           >
             {insights.slice(1).map((ins) => (

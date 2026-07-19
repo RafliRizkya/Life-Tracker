@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import CareerTrail from "@/components/career/CareerTrail";
-import { STATUS_META } from "@/components/career/constants";
+import { STATUS_META, TRACK_META } from "@/components/career/constants";
 
 export default function CareerPage() {
   const {
@@ -24,6 +24,7 @@ export default function CareerPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [rangeFilter, setRangeFilter] = useState("all"); // all | past | current-year | future
   const [selected, setSelected] = useState(null);
+  const [activeTrack, setActiveTrack] = useState("experience");
 
   const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
 
@@ -106,16 +107,9 @@ export default function CareerPage() {
         <Legend color="#315d48" label="Completed" />
         <Legend color="#eb9b63" label="In progress" glow />
         <Legend color="#8a9a5b" label="Planned" outline />
-        <span className="text-line dark:text-night-border">|</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-1 rounded-sm bg-ink-muted" /> Blok solid = pengalaman kerja
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-ink-muted" style={{ boxShadow: "0 0 0 3px rgba(0,0,0,0.08)" }} /> Badge = milestone
-        </span>
       </div>
 
-      {/* Trail (gamified) */}
+      {/* Trail (gamified skill map) */}
       {filtered.length === 0 ? (
         <EmptyState
           icon={Sparkles}
@@ -128,7 +122,39 @@ export default function CareerPage() {
           }
         />
       ) : (
-        <CareerTrail milestones={filtered} onSelect={setSelected} selectedId={selected?.id} />
+        <div>
+          <div className="flex flex-col items-center mb-6">
+            <div
+              className="inline-flex rounded-full border border-line dark:border-night-border p-1 bg-card dark:bg-night-card"
+              data-testid="track-toggle"
+            >
+              {Object.entries(TRACK_META).map(([key, meta]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTrack(key)}
+                  data-testid={`track-toggle-${key}`}
+                  aria-pressed={activeTrack === key}
+                  className={clsx(
+                    "inline-flex items-center justify-center min-h-[44px] px-4 rounded-full text-[12.5px] font-medium transition-colors",
+                    activeTrack === key
+                      ? "bg-ink text-paper dark:bg-lime dark:text-forest-800"
+                      : "text-ink-muted hover:text-ink dark:hover:text-night-text"
+                  )}
+                >
+                  {meta.label}
+                </button>
+              ))}
+            </div>
+            <div className="text-[11.5px] text-ink-muted mt-2">{TRACK_META[activeTrack].hint}</div>
+          </div>
+          <CareerTrail
+            milestones={filtered}
+            track={activeTrack}
+            onSelect={setSelected}
+            selectedId={selected?.id}
+          />
+        </div>
       )}
 
       {/* Portfolio */}

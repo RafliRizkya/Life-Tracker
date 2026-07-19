@@ -20,10 +20,13 @@ module.exports = {
           DEFAULT: "#fffdf8",
           soft: "#f9f5ea",
         },
+        // Bound to the CSS custom properties in globals.css so text-ink/
+        // text-ink-soft/text-ink-muted flip with .dark automatically —
+        // previously hardcoded to the light values, leaving dark-on-dark text.
         ink: {
-          DEFAULT: "#1d2b24",
-          soft: "#2b3d33",
-          muted: "#718078",
+          DEFAULT: "rgb(var(--ink) / <alpha-value>)",
+          soft: "rgb(var(--ink-soft) / <alpha-value>)",
+          muted: "rgb(var(--muted) / <alpha-value>)",
         },
         forest: {
           50: "#eaf1ea",

@@ -214,15 +214,17 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Type filter**: All, Education, Certificate, Experience, Project, Skill Milestone, Target Role
 - **Range filter**: Semua, Masa lalu, Tahun ini, Masa depan
 
-#### FR-CAREER-03: Dual-Track Career Map (redesigned 2026-07-18 — `docs/features/career-journey.md`)
-- **Layout**: Two parallel vertical lanes, split by a `track` field derived from `type` — "Jejak Profesional" (`track: "experience"`, jobs) on the left, "Milestone & Pencapaian" (`track: "milestone"`, education/certificates/other) on the right. Each lane is its own chronological connector-line + card list (`CareerTrail.jsx` → `TrailLane` → `TrailCard.jsx`).
-- **Text always visible on the card** (no click required): title, organization, location, date range + computed duration (`formatMonthRange()`/`formatDuration()`), a short description preview, up to 4 skill chips.
-- **Aesthetic differentiation**: Experience cards = solid rectangular blocks with a status-colored left border. Milestone cards = rounded badges with a soft glow ring when not `planned`.
-- **Nodes**: Connector-dot color-coded per status
-  - Completed: `#315d48` solid
-  - In progress: glow ring (`boxShadow`)
-  - Planned: dashed outline, transparent fill
-- **Animation**: Fade/slide-in on mount via Framer Motion `AnimatePresence`, respects `reducedMotion`.
+#### FR-CAREER-03: Career Skill Map (redesigned 2026-07-19 — `docs/features/career-journey.md`)
+- **Track toggle**: Segmented control ("Jejak Profesional" / "Milestone & Pencapaian") switches which single track renders — replaces the earlier side-by-side dual-lane layout. Track is still derived from `type` the same as before (`experience` → `"experience"`, else `"milestone"`).
+- **Layout**: One winding vertical path per track — nodes zigzag across 3 fixed horizontal anchors (left/center/right) connected by a smooth S-curve (SVG cubic bezier, `CareerTrail.jsx`), read as a video-game skill-tree/level map rather than a corporate timeline.
+- **Nodes** (`TrailCard.jsx`): Circular icon buttons (type icon per milestone), color-coded by status
+  - Completed: solid `#315d48` fill
+  - In progress: solid fill + pulsing glow ring ("you are here"), respects `reducedMotion`
+  - Planned: dashed outline, transparent fill ("locked ahead")
+  - `ongoing: true` gets a small corner dot badge
+- **Path coloring**: Solid up through the last non-planned node, muted dashed beyond it (visualizes progress vs. what's ahead).
+- **Title + date always visible** beneath each node (no click required); organization/location/description/skills/evidence moved into the click-through drawer (FR-CAREER-04) — decluttered from the always-visible surface as part of the gamified redesign.
+- **Animation**: Framer Motion, state-tied — only milestones added in the current session pop in; initial load is static. Respects `reducedMotion`.
 
 #### FR-CAREER-04: Milestone Detail Drawer
 - **Editable fields**: Month/Year mulai, "Masih berlangsung" checkbox (shows "Sekarang" on the card, hides end-date fields), Month/Year selesai (when not ongoing), Organization, Location, Description singkat (card preview), Detail/highlight (multi-line textarea, one bullet per line → `highlights: string[]`), Skills (comma-separated), Evidence URL, Status (dropdown), Contribution (0–30%)
@@ -261,10 +263,11 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Legend**: Category label + IDR short amount
 
 #### FR-FIN-05: Budget Management
-- **Display**: Budget cards with category, spent/limit, progress bar, over-budget warning
-- **Create**: Inline form (category dropdown, limit input)
-- **Delete**: Trash icon per budget
-- **Computation**: Match transactions by category + current month
+- **Display**: 3-level drill-down accordion — Month → Week (W1–W4, contiguous day-range buckets) → Category. Month row shows category count; week rows show aggregate spent/allocated; category rows show progress bar + over-budget warning (terracotta).
+- **Week allocation**: Derived, not stored — each category's monthly `limit` is prorated across weeks by day-count share (`budgetWeeklyBreakdown()` in `insights.js`). No schema change; the `budgets` entity stays month-level (§5.7).
+- **Create**: Inline form (category dropdown, limit input), unchanged — still sets a month-level limit
+- **Delete**: Trash icon per category row (any week), removes the month-level budget via its `budgetId`
+- **Computation**: Match transactions by category + current month + day-of-month within the week's range
 
 #### FR-FIN-06: Finance Reminders
 - **Display**: List with title, amount, due day, cadence
@@ -727,8 +730,9 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 |---|---|---|---|
 | FR-DASH-02 | Today's Focus card | toggleCommitment | page.js (root) |
 | FR-GOAL-06 | Quick Add Modal | addGoal | goals/page.js |
-| FR-CAREER-03 | CareerTrail (dual-track) + TrailCard | - | career/page.js |
+| FR-CAREER-03 | Track toggle + CareerTrail (skill map) + TrailCard | - | career/page.js |
 | FR-FIN-07 | Transaction list | addTransaction, removeTransaction | finance/page.js |
+| FR-FIN-05 | Budget Month→Week→Category accordion | upsertBudget, removeBudget, budgetWeeklyBreakdown | finance/page.js |
 | FR-SKILL-03 | Catat sesi button | practiceSkill | skills/page.js |
 | FR-COMPASS-02 | WeeklyRitual | addReview | compass/page.js |
 | FR-COMPASS-03 | Quick form | addReflection | compass/page.js |
