@@ -618,7 +618,8 @@ export const TX_CATEGORIES = {
   ],
   expense: [
     { key: "daily", label: "Kebutuhan harian" },
-    { key: "food", label: "Makan & minum" },
+    { key: "food", label: "Makanan" },
+    { key: "drink", label: "Minuman" },
     { key: "transport", label: "Transport" },
     { key: "learning", label: "Belajar / kursus" },
     { key: "device", label: "Alat kerja" },
