@@ -620,6 +620,7 @@ export const TX_CATEGORIES = {
     { key: "daily", label: "Kebutuhan harian" },
     { key: "food", label: "Makanan" },
     { key: "drink", label: "Minuman" },
+    { key: "cigarette", label: "Rokok" },
     { key: "transport", label: "Transport" },
     { key: "learning", label: "Belajar / kursus" },
     { key: "device", label: "Alat kerja" },

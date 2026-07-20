@@ -22,6 +22,7 @@ const CATEGORY_RULES = {
   expense: [
     { match: ["makan", "nasi", "jajan", "sarapan", "lunch", "dinner"], key: "food" },
     { match: ["kopi", "minum", "teh", "jus", "boba", "susu"], key: "drink" },
+    { match: ["rokok", "sigaret", "vape"], key: "cigarette" },
     { match: ["bensin", "ojek", "grab", "gojek", "parkir", "tol"], key: "transport" },
     { match: ["kursus", "buku", "belajar"], key: "learning" },
     { match: ["laptop", "device", "charger"], key: "device" },
