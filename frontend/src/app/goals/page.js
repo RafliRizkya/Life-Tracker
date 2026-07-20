@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLifeStore } from "@/lib/store";
 import { Card, Progress, EmptyState } from "@/components/ui";
 import {
-  Plus, ArrowUpRight, Archive, Target, ChevronRight, X, CheckCircle2,
+  Plus, ArrowUpRight, Archive, Target, ChevronRight, X, CheckCircle2, Settings2, Check,
 } from "lucide-react";
 import { LIFE_AREAS, TX_CATEGORIES } from "@/lib/seed";
-import { computeGoalProgress, careerReadiness, savingsProgress, goalEvidenceStatus, goalKind, linkedGoalCurrent } from "@/lib/insights";
+import { computeGoalProgress, careerReadiness, savingsProgress, goalEvidenceStatus, goalKind, goalCurrentValue } from "@/lib/insights";
 import { formatIDR, formatDateID } from "@/lib/format";
 import ActionPlanPanel from "@/components/ActionPlanPanel";
 import clsx from "clsx";
@@ -22,9 +22,9 @@ export default function GoalsPage() {
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(null);
 
-  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
+  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones, transactions);
   const savings = savingsProgress(goals, transactions, financeTargets);
-  const ctx = { readiness, savings, transactions };
+  const ctx = { readiness, savings, transactions, skills };
 
   const filtered = goals
     .filter((g) => g.status !== "archived")
@@ -127,8 +127,8 @@ export default function GoalsPage() {
                   {g.id === "goal-savings-ladder" && savings
                     ? `${formatIDR(savings.current)} · target ${formatIDR(savings.target)}`
                     : g.metric.unit === "IDR"
-                    ? `${formatIDR(linkedGoalCurrent(g, transactions))} · target ${formatIDR(g.metric.target)}`
-                    : `${linkedGoalCurrent(g, transactions)} dari ${g.metric.target} ${g.metric.unit}`}
+                    ? `${formatIDR(goalCurrentValue(g, transactions))} · target ${formatIDR(g.metric.target)}`
+                    : `${goalCurrentValue(g, transactions)} dari ${g.metric.target} ${g.metric.unit}`}
                 </div>
               )}
               <div className="mt-6 flex items-center gap-3">
@@ -251,23 +251,31 @@ function GoalDetail({ goal, ctx, onClose, onArchive, onUpdate }) {
             {goal.why && <p className="mt-4 text-[13px] text-ink-muted italic">&ldquo;{goal.why}&rdquo;</p>}
           </div>
 
-          {goal.metric && !isSavings && (
+          {goal.metric && !isSavings && goal.progressSource?.type !== "skill" && (
             <div className="rounded-xl bg-card dark:bg-night-card border border-line dark:border-night-border p-4">
               <div className="eyebrow">Metric</div>
               <div className="mt-1 flex items-baseline gap-2">
                 <div className="h-display text-[22px]">
-                  {goal.metric.unit === "IDR" ? formatIDR(linkedGoalCurrent(goal, ctx?.transactions ?? [])) : goal.metric.current}
+                  {goal.metric.unit === "IDR" ? formatIDR(goalCurrentValue(goal, ctx?.transactions ?? [])) : goal.metric.current}
                 </div>
                 <div className="text-[11.5px] text-ink-muted">
                   dari {goal.metric.unit === "IDR" ? formatIDR(goal.metric.target) : goal.metric.target}
                 </div>
               </div>
-              {goal.linkedCategory && (
+              {goal.progressSource?.type === "finance" && (
                 <div className="mt-2 text-[11px] text-forest-500 dark:text-lime">
-                  Tersinkron otomatis dari transaksi kategori &ldquo;{TX_CATEGORIES.expense.find(c => c.key === goal.linkedCategory)?.label || goal.linkedCategory}&rdquo;
+                  Tersinkron otomatis dari transaksi kategori &ldquo;{TX_CATEGORIES.expense.find(c => c.key === goal.progressSource.category)?.label || goal.progressSource.category}&rdquo;
                 </div>
               )}
             </div>
+          )}
+
+          {!isSavings && goal.progressSource?.type === "skill" && (
+            <SkillSourceCard goal={goal} skills={ctx?.skills ?? []} />
+          )}
+
+          {!isSavings && !isCareer && (
+            <GoalProgressEditor goal={goal} skills={ctx?.skills ?? []} onSave={onUpdate} />
           )}
 
           {isCareer && ctx?.readiness && (
@@ -366,5 +374,167 @@ function GoalDetail({ goal, ctx, onClose, onArchive, onUpdate }) {
         </div>
       </motion.aside>
     </motion.div>
+  );
+}
+
+function SkillSourceCard({ goal, skills }) {
+  const linkedSkill = skills.find((s) => s.id === goal.progressSource?.skillId);
+  return (
+    <div className="rounded-xl bg-card dark:bg-night-card border border-line dark:border-night-border p-4" data-testid="goal-skill-source-card">
+      <div className="eyebrow">Sumber progress</div>
+      {linkedSkill ? (
+        <>
+          <div className="mt-1 text-[15px] font-medium">{linkedSkill.name}</div>
+          <div className="text-[11.5px] text-ink-muted mt-1">
+            Level {linkedSkill.level} dari {linkedSkill.target} — tersinkron otomatis dari Skills.
+          </div>
+        </>
+      ) : (
+        <p className="text-[11.5px] text-ink-muted mt-1">Skill yang ditautkan sudah dihapus — atur ulang sumber progress di bawah.</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Setting progress": where a goal's number comes from — hand-typed, or
+ * auto-derived from a Finance category / a Skill's level. Skipped for
+ * goal-savings-ladder and goal-data-analyst, which already have their own
+ * dedicated, always-on sync (Finance's Tabungan tracker / career readiness
+ * breakdown) and no single metric to hand-edit.
+ */
+function GoalProgressEditor({ goal, skills, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [sourceType, setSourceType] = useState(goal.progressSource?.type || "manual");
+  const [category, setCategory] = useState(goal.progressSource?.category || TX_CATEGORIES.expense[0]?.key || "");
+  const [skillId, setSkillId] = useState(goal.progressSource?.skillId || skills[0]?.id || "");
+  const [metricCurrent, setMetricCurrent] = useState(String(goal.metric?.current ?? 0));
+  const [metricTarget, setMetricTarget] = useState(String(goal.metric?.target ?? ""));
+  const [metricUnit, setMetricUnit] = useState(goal.metric?.unit || "IDR");
+  const [manualProgress, setManualProgress] = useState(String(goal.progress ?? 0));
+
+  function startEdit() {
+    setSourceType(goal.progressSource?.type || "manual");
+    setCategory(goal.progressSource?.category || TX_CATEGORIES.expense[0]?.key || "");
+    setSkillId(goal.progressSource?.skillId || skills[0]?.id || "");
+    setMetricCurrent(String(goal.metric?.current ?? 0));
+    setMetricTarget(String(goal.metric?.target ?? ""));
+    setMetricUnit(goal.metric?.unit || "IDR");
+    setManualProgress(String(goal.progress ?? 0));
+    setEditing(true);
+  }
+
+  function commit() {
+    if (sourceType === "finance") {
+      onSave({
+        progressSource: { type: "finance", category },
+        metric: { current: 0, target: Number(metricTarget) || 0, unit: metricUnit || "IDR" },
+      });
+    } else if (sourceType === "skill") {
+      onSave({ progressSource: { type: "skill", skillId } });
+    } else if (goal.metric) {
+      onSave({
+        progressSource: { type: "manual" },
+        metric: { ...goal.metric, current: Number(metricCurrent) || 0, target: Number(metricTarget) || goal.metric.target },
+      });
+    } else {
+      onSave({ progressSource: { type: "manual" }, progress: Math.max(0, Math.min(100, Number(manualProgress) || 0)) });
+    }
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={startEdit}
+        className="flex items-center gap-1.5 text-[12px] text-ink-muted hover:text-ink dark:hover:text-night-text underline decoration-dotted underline-offset-2"
+        data-testid="goal-progress-editor-toggle"
+      >
+        <Settings2 className="h-3.5 w-3.5" /> Atur target &amp; sumber progress
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-forest-500/50 dark:border-lime/50 p-4 grid gap-3" data-testid="goal-progress-editor-form">
+      <div className="grid gap-1">
+        <span className="eyebrow">Sumber progress</span>
+        <select value={sourceType} onChange={(e) => setSourceType(e.target.value)} className="input" data-testid="goal-progress-source-type">
+          <option value="manual">Manual — saya update sendiri</option>
+          <option value="finance">Finance — ambil dari transaksi kategori tertentu</option>
+          <option value="skill">Skills — ambil dari level skill tertentu</option>
+        </select>
+      </div>
+
+      {sourceType === "finance" && (
+        <>
+          <div className="grid gap-1">
+            <span className="eyebrow">Kategori Finance</span>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="input" data-testid="goal-progress-finance-category">
+              {TX_CATEGORIES.expense.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1">
+              <span className="eyebrow">Target angka</span>
+              <input type="number" min="0" value={metricTarget} onChange={(e) => setMetricTarget(e.target.value)} className="input" placeholder="0" data-testid="goal-progress-target" />
+            </div>
+            <div className="grid gap-1">
+              <span className="eyebrow">Satuan</span>
+              <input value={metricUnit} onChange={(e) => setMetricUnit(e.target.value)} className="input" placeholder="IDR" />
+            </div>
+          </div>
+          <p className="text-[11px] text-ink-muted">Progress dihitung otomatis dari total transaksi kategori ini — nilai saat ini nggak perlu diisi manual.</p>
+        </>
+      )}
+
+      {sourceType === "skill" && (
+        skills.length === 0 ? (
+          <p className="text-[11.5px] text-ink-muted">Belum ada skill. Tambah skill dulu di halaman Skills, baru bisa ditautkan ke sini.</p>
+        ) : (
+          <div className="grid gap-1">
+            <span className="eyebrow">Skill</span>
+            <select value={skillId} onChange={(e) => setSkillId(e.target.value)} className="input" data-testid="goal-progress-skill-select">
+              {skills.map((s) => (
+                <option key={s.id} value={s.id}>{s.name} (level {s.level}/{s.target})</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-ink-muted mt-1">Progress goal ini mengikuti progress level skill tersebut.</p>
+          </div>
+        )
+      )}
+
+      {sourceType === "manual" && goal.metric && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-1">
+            <span className="eyebrow">Nilai saat ini</span>
+            <input type="number" min="0" value={metricCurrent} onChange={(e) => setMetricCurrent(e.target.value)} className="input" data-testid="goal-progress-current" />
+          </div>
+          <div className="grid gap-1">
+            <span className="eyebrow">Target</span>
+            <input type="number" min="0" value={metricTarget} onChange={(e) => setMetricTarget(e.target.value)} className="input" data-testid="goal-progress-target" />
+          </div>
+        </div>
+      )}
+
+      {sourceType === "manual" && !goal.metric && (
+        <div className="grid gap-1">
+          <span className="eyebrow">Progress (%)</span>
+          <input type="number" min="0" max="100" value={manualProgress} onChange={(e) => setManualProgress(e.target.value)} className="input" data-testid="goal-progress-manual" />
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={() => setEditing(false)} className="btn-ghost text-[12px]" data-testid="goal-progress-cancel">
+          <X className="h-3.5 w-3.5" /> Batal
+        </button>
+        <button type="button" onClick={commit} className="btn-dark text-[12px]" data-testid="goal-progress-save">
+          <Check className="h-3.5 w-3.5" /> Simpan
+        </button>
+      </div>
+    </div>
   );
 }

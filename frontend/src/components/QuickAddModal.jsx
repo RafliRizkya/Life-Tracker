@@ -30,7 +30,6 @@ const empty = {
   metricCurrent: "",
   metricTarget: "",
   metricUnit: "IDR",
-  linkedCategory: "",
   nlText: "",
   month: new Date().getMonth() + 1,
   year: new Date().getFullYear(),
@@ -124,7 +123,6 @@ export default function QuickAddModal() {
                 target: Number(form.metricTarget) || 0,
                 unit: form.metricUnit || "IDR",
               },
-              ...(form.linkedCategory ? { linkedCategory: form.linkedCategory } : {}),
             }
           : {}),
       });
@@ -306,15 +304,10 @@ export default function QuickAddModal() {
                       </Field>
                     </div>
                   )}
-                  {form.goalKind === "quantitative" && form.area === "finance" && (
-                    <Field label="Sinkron otomatis dengan kategori Finance (opsional)">
-                      <select value={form.linkedCategory} onChange={(e) => up("linkedCategory", e.target.value)} className="input" data-testid="goal-linked-category">
-                        <option value="">Tidak — isi manual</option>
-                        {TX_CATEGORIES.expense.map((c) => (
-                          <option key={c.key} value={c.key}>{c.label}</option>
-                        ))}
-                      </select>
-                    </Field>
+                  {form.goalKind === "quantitative" && (
+                    <p className="text-[11px] text-ink-muted -mt-1">
+                      Bisa disinkronkan otomatis ke Finance atau Skills nanti — buka goal ini lalu klik &ldquo;Atur target &amp; sumber progress&rdquo;.
+                    </p>
                   )}
                   <Field label="Kenapa penting?">
                     <textarea value={form.description} onChange={(e) => up("description", e.target.value)} className="input h-20 resize-none" placeholder="Alasan yang jujur bikin goal ini bertahan." />

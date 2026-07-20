@@ -118,8 +118,8 @@ function buildGoals(store, ctx) {
 }
 
 function buildCareer(store) {
-  const { goals = [], skills = [], portfolio = [], careerMilestones = [] } = store;
-  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
+  const { goals = [], skills = [], portfolio = [], careerMilestones = [], transactions = [] } = store;
+  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones, transactions);
   const recentMilestones = careerMilestones.slice(0, 6).map((m) => ({
     title: m.title,
     type: m.type,
@@ -200,10 +200,11 @@ export function buildContext(store, intent) {
     store.goals || [],
     store.skills || [],
     store.portfolio || [],
-    store.careerMilestones || []
+    store.careerMilestones || [],
+    store.transactions || []
   );
   const savings = savingsProgress(store.goals || [], store.transactions || [], store.financeTargets);
-  const ctx = { readiness, savings, transactions: store.transactions || [] };
+  const ctx = { readiness, savings, transactions: store.transactions || [], skills: store.skills || [] };
 
   const payload = {};
   for (const key of modules) {

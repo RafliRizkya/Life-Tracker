@@ -51,7 +51,7 @@ export default function DashboardPage() {
 
   const totals = monthlyTotals(transactions);
   const savings = savingsProgress(goals, transactions, financeTargets);
-  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
+  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones, transactions);
   const momentum = skillMomentum(skills);
   const insights = buildInsights({
     transactions,

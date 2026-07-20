@@ -43,6 +43,7 @@ export const seedGoals = [
       { key: "applications", label: "Job readiness", weight: 10, value: 20 },
     ],
     notes: "Fokus: SQL joins, satu proyek analitik dengan storytelling.",
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -55,7 +56,8 @@ export const seedGoals = [
     status: "in_progress",
     targetDate: "2027-06-30",
     notes: "Latih SQL + Python + storytelling; tambah satu resource per minggu.",
-    progress: 48,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -67,7 +69,8 @@ export const seedGoals = [
     priority: "high",
     status: "in_progress",
     targetDate: "2026-12-31",
-    metric: { current: 3_250_000, target: 10_000_000, unit: "IDR" },
+    metric: { current: 0, target: 10_000_000, unit: "IDR" },
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -79,7 +82,8 @@ export const seedGoals = [
     priority: "medium",
     status: "planned",
     targetDate: "2026-11-30",
-    metric: { current: 4_200_000, target: 16_000_000, unit: "IDR" },
+    metric: { current: 0, target: 16_000_000, unit: "IDR" },
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -92,6 +96,7 @@ export const seedGoals = [
     status: "planned",
     targetDate: "2027-06-30",
     metric: { current: 0, target: 22_000_000, unit: "IDR" },
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -103,7 +108,8 @@ export const seedGoals = [
     priority: "medium",
     status: "planned",
     targetDate: "2028-12-31",
-    progress: 12,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -121,8 +127,10 @@ export const seedGoals = [
     // insights.js, wired in via the goal-savings-ladder ID special-case in
     // computeGoalProgress() and savingsProgress(). `metric` stays here only
     // so goalKind() still classifies this as quantitative; its numbers are
-    // no longer read directly.
-    metric: { current: 8_400_000, target: 100_000_000, unit: "IDR" },
+    // no longer read directly (2026-07-20: current zeroed — it was dead
+    // data anyway, kept nonzero before only by seed accident).
+    metric: { current: 0, target: 100_000_000, unit: "IDR" },
+    progressSource: { type: "finance", category: "saving" },
     createdAt: now(),
   },
   {
@@ -134,7 +142,8 @@ export const seedGoals = [
     priority: "medium",
     status: "planned",
     targetDate: "2026-09-30",
-    progress: 5,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -147,6 +156,7 @@ export const seedGoals = [
     status: "planned",
     targetDate: "2030-06-30",
     progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -158,7 +168,8 @@ export const seedGoals = [
     priority: "high",
     status: "planned",
     targetDate: "2032-12-31",
-    progress: 3,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -170,7 +181,8 @@ export const seedGoals = [
     priority: "high",
     status: "in_progress",
     targetDate: "2026-12-31",
-    metric: { current: 2, target: 5, unit: "proyek" },
+    metric: { current: 0, target: 5, unit: "proyek" },
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -182,7 +194,8 @@ export const seedGoals = [
     priority: "high",
     status: "planned",
     targetDate: "2026-12-31",
-    progress: 20,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -194,7 +207,8 @@ export const seedGoals = [
     priority: "medium",
     status: "in_progress",
     targetDate: "2026-12-31",
-    progress: 35,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -206,7 +220,8 @@ export const seedGoals = [
     priority: "medium",
     status: "in_progress",
     targetDate: "2026-12-31",
-    progress: 30,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
   {
@@ -218,7 +233,8 @@ export const seedGoals = [
     priority: "medium",
     status: "in_progress",
     targetDate: "2026-12-31",
-    progress: 22,
+    progress: 0,
+    progressSource: { type: "manual" },
     createdAt: now(),
   },
 ];

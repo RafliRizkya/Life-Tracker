@@ -169,9 +169,10 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **Content**: 
   - Progress besar (e.g., "42%") + progress bar
   - Why (italic quote)
-  - Metric (current vs target)
+  - Metric (current vs target) — hidden for skill-linked goals, replaced by the skill source card (FR-GOAL-12)
   - Career breakdown (jika goal-data-analyst)
   - Savings milestones (jika goal-savings-ladder)
+  - "Atur target & sumber progress" panel (FR-GOAL-12) — hidden for goal-data-analyst/goal-savings-ladder, which have their own dedicated tracking
   - Notes
   - Status dropdown (planned/in_progress/completed)
   - Archive button
@@ -181,13 +182,11 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
   - `status === "completed"` → 100%
   - `id === "goal-data-analyst"` → `careerReadiness.overall`
   - `id === "goal-savings-ladder"` → `savingsProgress.pct`
-  - Has `metric` → `(linkedGoalCurrent(goal, transactions) / target) × 100` (2026-07-19: generalized from a raw `metric.current` read — see FR-GOAL-10)
-  - Has `contributions` → weighted sum
-  - Fallback → `goal.progress`
+  - Otherwise → `goalProgressValue(goal, {skills, transactions})` (2026-07-20, see FR-GOAL-12): resolves through `progressSource` (manual / finance-category-derived / skill-level-derived), falling back to `contributions` weighted sum or bare `goal.progress` for goals that have neither a `progressSource` nor a `metric`
 
 #### FR-GOAL-06: Add Goal
 - **Via**: Quick Add modal, type "goal"
-- **Fields**: title (required), area, priority, why, target date, jenis goal (kuantitatif/kualitatif — 2026-07-19), jika kuantitatif: current/target/unit + opsional `linkedCategory` (finance-area only)
+- **Fields**: title (required), area, priority, why, target date, jenis goal (kuantitatif/kualitatif — 2026-07-19), jika kuantitatif: current/target/unit. Source linking (finance category / skill) is no longer part of goal creation (2026-07-20) — done afterward via the goal's own "Atur target & sumber progress" panel, see FR-GOAL-12.
 
 #### FR-GOAL-07: Archive Goal
 - **Action**: Set `status: "archived"`
@@ -202,16 +201,23 @@ Rafli Life Tracker adalah aplikasi web standalone yang berjalan sepenuhnya di br
 - **States**: `evidenced` / `unproven` / `pending` (goal lebih muda dari window — bukan sinyal negatif) / `exempt` (area growth/business, atau status bukan in_progress)
 - **Surfacing**: chip "belum ada bukti" di kartu goal unproven; stat "on track" mensyaratkan progress ≥ 40 **dan** bukan unproven. Kontrol status manual user tidak diubah — ini overlay komputasi
 
-#### FR-GOAL-10: Kuantitatif/Kualitatif Categorization + Finance Sync (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`, `docs/features/finance-funds-and-weekly-budget.md`)
+#### FR-GOAL-10: Kuantitatif/Kualitatif Categorization (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
 - **`goalKind(goal)`**: derived, not stored. Returns `"quantitative"` if `goal.metric` or `goal.contributions` is present, else `"qualitative"`. Shown as a chip on every goal card.
-- **`linkedGoalCurrent(goal, transactions)`**: if `goal.linkedCategory` is set (an expense category key), current value = `metric.current` (treated as baseline) + sum of all matching-category expense transactions. General-purpose mechanism, available to any goal.
-- **`goal-savings-ladder` special case, superseded same day**: this specific goal briefly used `linkedGoalCurrent` via `linkedCategory: "saving"`, then — per a same-day follow-up request to track Tabungan as a first-class Finance entity — was changed again to look up `financeTargets.savings` directly (§5.7b) instead: current/target/milestones all come from Finance now, `linkedGoalCategory` was removed from this goal's seed data. `computeGoalProgress()`'s and `savingsProgress()`'s existing `goal.id === "goal-savings-ladder"` ID special-case (predates both of today's changes) is what routes to the Finance lookup.
-- **Add Goal form**: quantitative + finance-area goals get an optional "Sinkron otomatis dengan kategori Finance" dropdown (`linkedGoalCurrent` mechanism — available for any *other* finance goal a user creates; not what powers the savings-ladder goal specifically anymore).
+- **`goal-savings-ladder` special case**: this goal looks up `financeTargets.savings` directly (§5.7b) — current/target/milestones all come from Finance. `computeGoalProgress()`'s and `savingsProgress()`'s `goal.id === "goal-savings-ladder"` ID special-case routes to the Finance lookup ahead of the generic `progressSource` mechanism (FR-GOAL-12), even though its seed data now also carries `progressSource: {type:"finance", category:"saving"}` for consistency/documentation purposes — the ID special-case is what actually executes, since it also drives the staged-milestone ladder that the generic mechanism doesn't have.
 
 #### FR-GOAL-11: AI Action Plan Generator (2026-07-19 — `docs/features/ai-action-plan-and-financial-planner.md`)
 - **Trigger**: "Generate action plan dengan AI" button in the Goal detail drawer (also present in Skill detail — see FR-SKILL).
 - **Flow**: `POST /api/ai/action-plan` with `{title, area, why, kind, context:"goal"}` → 3–8 suggested steps shown with checkboxes → **suggest-only, nothing saved until the user clicks Apply** → checked steps become real `addCommitment()` calls.
 - **Rate-limited**: shares the daily AI request cap with `/ai` chat and the financial planner (`AI_MAX_REQUESTS_PER_DAY`, one counter total).
+
+#### FR-GOAL-12: Goal Progress Sources — "Atur target & sumber progress" (2026-07-20 — `docs/features/goal-progress-sources.md`)
+- **Trigger**: every seed goal previously carried a hand-typed placeholder number (`progress`/`metric.current`) with no indication it wasn't real — surfaced when the user asked where a 35% figure on an untouched goal came from.
+- **`goal.progressSource`**: `{type: "manual"}` (default) | `{type: "finance", category}` | `{type: "skill", skillId}`.
+- **`goalCurrentValue(goal, transactions)`**: resolves `metric.current` — the finance category's live transaction sum (`fundCurrent`, reused from FR-FIN-11/12) if source is `finance`, otherwise the hand-typed number.
+- **`goalProgressValue(goal, {skills, transactions})`**: the shared resolver behind `computeGoalProgress()` — skill source reads `skill.level / skill.target` directly (ignores `metric`); finance/manual sources read `goalCurrentValue()` against `metric.target`; falls back to `contributions` weighted sum, then bare `goal.progress`, for goals without a metric.
+- **`careerReadiness()`** now takes a 5th `transactions` param and reads its network/LinkedIn/job-search sub-goals through `goalProgressValue()` instead of the raw `.progress` field — a goal linked to Finance or a Skill now correctly feeds the Career Readiness composite, not just its own card.
+- **UI** (`GoalProgressEditor` in `goals/page.js`): inline toggle-to-form panel — source select (Manual/Finance/Skill), then category+target (finance) or a skill picker showing `level/target` (skill) or current+target / bare progress % inputs (manual). Skipped for `goal-data-analyst`/`goal-savings-ladder` (FR-GOAL-10).
+- **Migration**: `migrateGoals()` in `store.js`'s `hydrate()` — any goal loaded (local or Supabase) without a `progressSource` gets `{type:"manual"}` backfilled and its `progress`/`metric.current` zeroed, once, then immediately re-persisted so the fix reaches Supabase without waiting for an unrelated edit.
 
 ---
 
@@ -582,11 +588,11 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 | priority | string | | low / medium / high |
 | status | string | ✅ | planned / in_progress / completed / archived |
 | targetDate | string | | ISO date |
-| metric | object | | { current, target, unit }. For `goal-savings-ladder` specifically (2026-07-19), these values are seed remnants only, kept so `goalKind()` still classifies it quantitative — its real current/target/milestones come from `financeTargets.savings` in Finance instead (see §5.7b, FR-GOAL-10) |
-| linkedCategory | string | | Expense category key (TX_CATEGORIES) — when set, live `current` = `metric.current` (baseline) + sum of matching expense transactions, via `linkedGoalCurrent()`. Only meaningful alongside `metric`. Not used by `goal-savings-ladder` since 2026-07-19 (superseded by the financeTargets lookup above) |
+| metric | object | | { current, target, unit }. `current` is either hand-typed or, when `progressSource.type === "finance"`, derived and ignored on write (see below). For `goal-savings-ladder` specifically, real current/target/milestones come from `financeTargets.savings` in Finance instead (see §5.7b, FR-GOAL-10) |
+| progressSource | object | | 2026-07-20, FR-GOAL-12. `{type: "manual"}` (default) \| `{type: "finance", category}` (category is a `TX_CATEGORIES.expense` key; `metric.current` is derived via `fundCurrent()`, never hand-set) \| `{type: "skill", skillId}` (progress = that skill's `level/target`, `metric` ignored). Backfilled on hydrate for any goal saved before this field existed — see FR-GOAL-12 migration note |
 | contributions | array | | [{key, label, weight, value}] |
 | milestones | array | | Deprecated 2026-07-19 for `goal-savings-ladder` — its milestones are now derived (`fundMilestones()`), not stored. Still a valid ad-hoc field for any other goal that wants stored milestones |
-| progress | number | | 0–100 |
+| progress | number | | 0–100. Only meaningful when `progressSource.type === "manual"` and the goal has no `metric` — hand-edited via the "Atur target & sumber progress" panel |
 | notes | string | | Free text |
 
 `goalKind(goal)` (2026-07-19, derived — not a stored field): `"quantitative"` if `metric` or `contributions` present, else `"qualitative"`.
@@ -812,8 +818,9 @@ Current value for either fund = `sum(expense transactions matching its category)
 | FR-CROSS-01 | CommandPalette | openPalette, closePalette | components/CommandPalette.jsx |
 | FR-CROSS-02 | QuickAddModal | (per type) | components/QuickAddModal.jsx |
 | FR-CROSS-03 | NotificationsDrawer | markNotificationRead, clearNotifications | components/NotificationsDrawer.jsx |
-| FR-GOAL-10 | Goal card kind chip, Quick Add kind/linkedCategory fields | addGoal, goalKind, linkedGoalCurrent | goals/page.js |
+| FR-GOAL-10 | Goal card kind chip, Quick Add kind field | addGoal, goalKind | goals/page.js |
 | FR-GOAL-11 / FR-SKILL-05b | ActionPlanPanel | addCommitment (goal) / updateSkill via onUpdate (skill) | components/ActionPlanPanel.jsx |
+| FR-GOAL-12 | GoalProgressEditor, SkillSourceCard | updateGoal (via onUpdate) | goals/page.js |
 | FR-FIN-09 | Quick Add free-text field | parseMessage (no store action — pre-fills form) | components/QuickAddModal.jsx |
 | FR-FIN-10 | FinancialPlanCard | - (informational only since 2026-07-19, no per-category budget left to apply into) | finance/page.js |
 | FR-FIN-13 | Income scorecard hint, WeeklyLimitEditor placeholder | setWeeklyBudget | finance/page.js |
@@ -824,4 +831,4 @@ Current value for either fund = `sum(expense transactions matching its category)
 
 ---
 
-*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04), 19-20 Juli 2026 untuk Goals/Finance AI upgrade, Supabase sync, weekly budget rewrite, Dana Darurat/Tabungan funds, dan Life Compass rework (tab merge + AI reflection response).*
+*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04), 19-20 Juli 2026 untuk Goals/Finance AI upgrade, Supabase sync, weekly budget rewrite, Dana Darurat/Tabungan funds, Life Compass rework (tab merge + AI reflection response), dan Goal Progress Sources (FR-GOAL-12 — every goal's progress traces to an explicit manual/Finance/Skill source, no hardcoded placeholders).*

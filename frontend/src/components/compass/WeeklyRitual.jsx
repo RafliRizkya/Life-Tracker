@@ -62,9 +62,10 @@ export default function WeeklyRitual() {
   );
   const ctx = useMemo(
     () => ({
-      readiness: careerReadiness(goals, skills, portfolio, careerMilestones),
+      readiness: careerReadiness(goals, skills, portfolio, careerMilestones, transactions),
       savings: savingsProgress(goals, transactions, financeTargets),
       transactions,
+      skills,
     }),
     [goals, skills, portfolio, careerMilestones, transactions, financeTargets]
   );

@@ -95,19 +95,44 @@ export function budgetWeeklyBreakdown(budgets, transactions, mk = currentMonthKe
 }
 
 /**
- * A quantitative goal's metric.current can either be a plain hand-edited
- * number, or — if `linkedCategory` is set — auto-track a Finance expense
- * category: metric.current becomes a baseline, and every matching
- * transaction adds on top. Generalizes what used to be a goal-savings-ladder
- * special case so any finance goal can opt in (Goals <> Finance sync).
+ * A goal's `progressSource` says where its number comes from — set via the
+ * Goals "Atur target & sumber progress" panel, never hardcoded:
+ *   - {type: "manual"} (default) — metric.current (if the goal has a metric)
+ *     or the bare `progress` percentage, both hand-edited by the user.
+ *   - {type: "finance", category} — metric.current is the live sum of
+ *     transactions in that Finance category (no baseline, nothing invented).
+ *   - {type: "skill", skillId} — progress is that skill's own level/target,
+ *     ignoring metric/progress entirely.
  */
-export function linkedGoalCurrent(goal, transactions) {
-  if (!goal.linkedCategory) return goal.metric?.current ?? 0;
-  const baseline = goal.metric?.current ?? 0;
-  const tracked = transactions
-    .filter((t) => t.type === "expense" && t.category === goal.linkedCategory)
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  return baseline + tracked;
+export function goalCurrentValue(goal, transactions) {
+  if (goal.progressSource?.type === "finance") {
+    return fundCurrent(transactions, goal.progressSource.category);
+  }
+  return goal.metric?.current ?? 0;
+}
+
+const clampPct = (n) => Math.max(0, Math.min(100, n));
+
+/** Resolves a goal's own progress (ignoring the whole-goal id special cases
+ * — career readiness composite, savings ladder — handled by computeGoalProgress).
+ * Shared with careerReadiness() so a network/LinkedIn/job-search goal that's
+ * been linked to Finance or a Skill feeds the composite too, not just the
+ * Goals page. */
+export function goalProgressValue(goal, { skills = [], transactions = [] } = {}) {
+  const source = goal.progressSource;
+  if (source?.type === "skill") {
+    const skill = skills.find((s) => s.id === source.skillId);
+    return skill ? clampPct(Math.round((skill.level / (skill.target || 1)) * 100)) : 0;
+  }
+  if (goal.metric) {
+    const current = goalCurrentValue(goal, transactions);
+    return clampPct(Math.round((current / (goal.metric.target || 1)) * 100));
+  }
+  if (goal.contributions) {
+    const total = goal.contributions.reduce((a, c) => a + (c.value * c.weight) / 100, 0);
+    return clampPct(Math.round(total));
+  }
+  return clampPct(Math.round(goal.progress ?? 0));
 }
 
 /**
@@ -160,7 +185,7 @@ export function savingsProgress(goals, transactions, financeTargets) {
   const savingsGoal = goals.find((g) => g.id === "goal-savings-ladder");
   if (!savingsGoal) return null;
   const fund = financeTargets?.savings;
-  const current = fund ? fundCurrent(transactions, "saving") : linkedGoalCurrent(savingsGoal, transactions);
+  const current = fund ? fundCurrent(transactions, "saving") : goalCurrentValue(savingsGoal, transactions);
   const grandTarget = fund?.target ?? savingsGoal.metric?.target ?? 100_000_000;
   const milestoneTargets = fund ? fundMilestones(grandTarget) : (savingsGoal.milestones || []).map((m) => m.target);
   const milestones = milestoneTargets.map((t) => ({
@@ -178,7 +203,7 @@ export function savingsProgress(goals, transactions, financeTargets) {
 
 /* ---------- Career readiness ---------- */
 
-export function careerReadiness(goals, skills, portfolio, milestones) {
+export function careerReadiness(goals, skills, portfolio, milestones, transactions = []) {
   const goal = goals.find((g) => g.id === "goal-data-analyst");
   const roleSkills = skills.filter((s) => s.relatedToRole);
   const skillsAvg =
@@ -199,12 +224,19 @@ export function careerReadiness(goals, skills, portfolio, milestones) {
     100,
     milestones.filter((m) => m.type === "certificate" && m.status === "completed").length * 35
   );
+  // Reads through goalProgressValue (not the bare .progress field) so a
+  // network/LinkedIn/job-search goal linked to Finance or a Skill feeds the
+  // composite exactly like it feeds its own card on the Goals page.
+  const progressCtx = { skills, transactions };
+  const networkGoal = goals.find((g) => g.id === "goal-network");
+  const linkedinGoal = goals.find((g) => g.id === "goal-linkedin");
+  const jobGoal = goals.find((g) => g.id === "goal-first-data-job");
   const networkPct = Math.min(
     100,
-    (goals.find((g) => g.id === "goal-network")?.progress ?? 0) +
-      (goals.find((g) => g.id === "goal-linkedin")?.progress ?? 0)
+    (networkGoal ? goalProgressValue(networkGoal, progressCtx) : 0) +
+      (linkedinGoal ? goalProgressValue(linkedinGoal, progressCtx) : 0)
   );
-  const applicationPct = goals.find((g) => g.id === "goal-first-data-job")?.progress ?? 0;
+  const applicationPct = jobGoal ? goalProgressValue(jobGoal, progressCtx) : 0;
 
   const parts = [
     { key: "skills", label: "Core skills", weight: 0.25, value: skillsAvg },
@@ -862,17 +894,5 @@ export function computeGoalProgress(goal, ctx) {
   if (goal.id === "goal-savings-ladder" && ctx?.savings) {
     return ctx.savings.pct;
   }
-  if (goal.metric) {
-    const current = linkedGoalCurrent(goal, ctx?.transactions ?? []);
-    const pct = Math.round((current / (goal.metric.target || 1)) * 100);
-    return Math.max(0, Math.min(100, pct));
-  }
-  if (goal.contributions) {
-    const total = goal.contributions.reduce(
-      (a, c) => a + (c.value * c.weight) / 100,
-      0
-    );
-    return Math.round(total);
-  }
-  return Math.round(goal.progress ?? 0);
+  return goalProgressValue(goal, { skills: ctx?.skills ?? [], transactions: ctx?.transactions ?? [] });
 }

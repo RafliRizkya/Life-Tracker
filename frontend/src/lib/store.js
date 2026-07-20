@@ -55,6 +55,26 @@ function loadFromStorage() {
   }
 }
 
+/**
+ * One-time backfill for goals saved before `progressSource` existed (2026-07-20):
+ * the original seed had hand-typed placeholder numbers for progress/metric.current
+ * that read as unexplained "ghost" percentages once shown without their origin
+ * explained — see the phantom-8.4jt bug this same pattern caused for Finance.
+ * `progressSource`'s presence is the migration marker, so a goal only gets
+ * touched once — real progress the user sets afterward is never reset again.
+ */
+function migrateGoals(goals) {
+  return (goals || []).map((g) => {
+    if (g.progressSource) return g;
+    return {
+      ...g,
+      progressSource: { type: "manual" },
+      ...(g.metric ? { metric: { ...g.metric, current: 0 } } : {}),
+      ...(typeof g.progress === "number" ? { progress: 0 } : {}),
+    };
+  });
+}
+
 function saveToStorage(state) {
   if (typeof window === "undefined") return;
   // Let quota/private-mode errors propagate — persist() surfaces them,
@@ -133,14 +153,17 @@ export const useLifeStore = create((set, get) => ({
     const stored = loadFromStorage();
     if (stored) {
       // Backfill new fields on state saved by older versions.
+      const goalsNeedMigration = (stored.goals || []).some((g) => !g.progressSource);
       set({
         ...stored,
         reflections: stored.reflections ?? initial.reflections,
         wins: stored.wins ?? initial.wins,
         letters: stored.letters ?? initial.letters,
         financeTargets: stored.financeTargets ?? initial.financeTargets,
+        goals: migrateGoals(stored.goals ?? initial.goals),
         hydrated: true,
       });
+      if (goalsNeedMigration) get().persist();
     } else {
       set({ hydrated: true });
       get().persist();
@@ -161,15 +184,18 @@ export const useLifeStore = create((set, get) => ({
       }
       const localSavedAt = stored?.savedAt;
       if (!localSavedAt || (updatedAt && new Date(updatedAt) > new Date(localSavedAt))) {
+        const goalsNeedMigration = (remote.goals || []).some((g) => !g.progressSource);
         set({
           ...remote,
           reflections: remote.reflections ?? initial.reflections,
           wins: remote.wins ?? initial.wins,
           letters: remote.letters ?? initial.letters,
           financeTargets: remote.financeTargets ?? initial.financeTargets,
+          goals: migrateGoals(remote.goals ?? initial.goals),
           hydrated: true,
         });
         saveToStorage(persistableSlice(get()));
+        if (goalsNeedMigration) get().persist();
       } else {
         // This device's copy is newer or equal — make sure Supabase catches up
         // (covers the case where an earlier push failed while offline).
@@ -279,6 +305,7 @@ export const useLifeStore = create((set, get) => ({
       priority: "medium",
       status: "planned",
       progress: 0,
+      progressSource: { type: "manual" },
       createdAt: nowISO(),
       ...payload,
     };

@@ -16,7 +16,7 @@ import { STATUS_META, TRACK_META } from "@/components/career/constants";
 
 export default function CareerPage() {
   const {
-    careerMilestones, skills, goals, portfolio,
+    careerMilestones, skills, goals, portfolio, transactions,
     openQuickAdd, updateCareerMilestone, removeCareerMilestone,
     addPortfolioProject,
   } = useLifeStore();
@@ -26,7 +26,7 @@ export default function CareerPage() {
   const [selected, setSelected] = useState(null);
   const [activeTrack, setActiveTrack] = useState("experience");
 
-  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones);
+  const readiness = careerReadiness(goals, skills, portfolio, careerMilestones, transactions);
 
   const currentRole = useMemo(() => {
     const ongoing = careerMilestones.filter((m) => m.type === "experience" && m.ongoing);
