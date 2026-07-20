@@ -19,6 +19,16 @@ export default function Providers({ children }) {
     hydrate();
   }, [hydrate]);
 
+  // Retries a previously-failed Supabase push as soon as the browser
+  // reconnects — don't wait for the user to happen to make another edit.
+  useEffect(() => {
+    function onOnline() {
+      useLifeStore.getState().retryPendingSync();
+    }
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, []);
+
   useEffect(() => {
     if (hydrated) syncWhatsAppTransactions();
   }, [hydrated, syncWhatsAppTransactions]);

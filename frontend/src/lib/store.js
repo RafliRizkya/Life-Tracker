@@ -1,11 +1,20 @@
 /**
  * Zustand store — canonical client-side state.
  *
- * Persistence strategy:
- *   1. On mount, hydrate from Supabase (if configured) OR from localStorage,
- *      OR from the built-in seed data (first visit).
- *   2. Every mutation persists to localStorage immediately and, when
- *      Supabase is configured, to Supabase asynchronously (best-effort).
+ * Persistence strategy (hardened 2026-07-20 after a real incident — see
+ * docs/features/supabase-sync.md "Reliability hardening" for the full story):
+ *   1. On mount, render from localStorage immediately (offline-first, never
+ *      blocks first paint), then reconcile with Supabase.
+ *   2. Once Supabase is configured, IT is the source of truth. localStorage
+ *      is a local cache plus a staging buffer for writes Supabase hasn't
+ *      confirmed yet. hydrate() never guesses "whose copy is newer" by
+ *      comparing timestamps — either this device has confirmed-pending
+ *      local writes (`pendingSync`) and pushes them, or it doesn't, in
+ *      which case remote is trusted unconditionally.
+ *   3. Every mutation persists to localStorage synchronously and schedules
+ *      a debounced push to Supabase. A failed push is never silent:
+ *      `pendingSync` stays true, a notification is shown, and both the next
+ *      hydrate() and the browser's `online` event retry it automatically.
  *
  * All records include `userId` so the schema is ready for multi-user
  * once Supabase Auth is enabled.
@@ -19,11 +28,13 @@ import { buildInitialState } from "./seed";
 import { isSupabaseConfigured } from "./supabase/client";
 
 const STORAGE_KEY = "rafli-life-tracker::state::v1";
+const CURRENT_VERSION = 1;
 const USER_ID =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_SEED_USER_ID) ||
   "rafli-akbar";
 
 const nowISO = () => new Date().toISOString();
+const asObject = (v, fallback) => (v && typeof v === "object" && !Array.isArray(v) ? v : fallback);
 
 /** Shared defaulting logic for a transaction, reused by manual add and WhatsApp sync. */
 function normalizeTransaction(payload) {
@@ -40,19 +51,6 @@ function normalizeTransaction(payload) {
     source: "manual",
     ...payload,
   };
-}
-
-function loadFromStorage() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || parsed.version !== 1) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -75,40 +73,105 @@ function migrateGoals(goals) {
   });
 }
 
-function saveToStorage(state) {
-  if (typeof window === "undefined") return;
-  // Let quota/private-mode errors propagate — persist() surfaces them,
-  // swallowing here silently loses the user's just-made change.
-  // savedAt lets hydrate() decide whether this device's copy or Supabase's
-  // copy is newer when reconciling across devices.
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, savedAt: nowISO() }));
+const ARRAY_FIELDS = [
+  "goals", "careerMilestones", "portfolio", "skills", "transactions",
+  "budgets", "reminders", "reviews", "commitments", "notifications",
+  "activity", "reflections", "wins", "letters",
+];
+
+/**
+ * Normalizes a stored/remote state blob against the current shape — never
+ * rejects it outright. 2026-07-20: this replaced a strict
+ * `parsed.version !== 1 → return null` check in loadFromStorage() that would
+ * have silently discarded a user's ENTIRE saved state (every transaction,
+ * every goal) the moment `version` in seed.js ever changed for any reason —
+ * exactly the shape of bug that reads as "my data disappeared after a
+ * deploy." Every field the blob already has is preserved as-is; only a
+ * missing/new field gets backfilled from `initial`, and a corrupted
+ * non-array value for a list field falls back to empty rather than crashing
+ * every `.map()`/`.filter()` downstream.
+ */
+function migrateState(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+  if (parsed.version !== CURRENT_VERSION) {
+    console.warn(
+      `[store] migrating stored state (version ${parsed.version ?? "unknown"} -> ${CURRENT_VERSION}) — existing data preserved, new fields backfilled from defaults.`
+    );
+  }
+  const merged = { ...initial, ...parsed, version: CURRENT_VERSION };
+  for (const key of ARRAY_FIELDS) {
+    if (!Array.isArray(merged[key])) merged[key] = initial[key];
+  }
+  merged.goals = migrateGoals(merged.goals);
+  merged.settings = { ...initial.settings, ...asObject(parsed.settings, {}) };
+  merged.financeTargets = { ...initial.financeTargets, ...asObject(parsed.financeTargets, {}) };
+  merged.user = { ...initial.user, ...asObject(parsed.user, {}) };
+  return merged;
 }
 
-/** Debounced, best-effort push of the full state blob to Supabase — never blocks a mutation. */
+function loadFromStorage() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const merged = migrateState(parsed);
+    if (!merged) return null;
+    // Marks whether migrateState() actually changed anything (new version,
+    // missing field backfilled, a goal migrated) — hydrate() uses this to
+    // decide whether the fix needs pushing to Supabase right away instead of
+    // silently waiting for the user's next unrelated edit. Stripped before
+    // the object is ever used as real state (see hydrate()).
+    merged.__migrated = JSON.stringify(persistableSlice(merged)) !== JSON.stringify(persistableSlice(parsed || {}));
+    return merged;
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(state, { pendingSync = false } = {}) {
+  if (typeof window === "undefined") return;
+  // Let quota/private-mode errors propagate — persist() surfaces them,
+  // swallowing here silently loses the user's just-made change. `savedAt`
+  // is kept for diagnostics only — reconciliation is driven by
+  // `pendingSync`, never by comparing timestamps (see hydrate()).
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ ...state, version: CURRENT_VERSION, savedAt: nowISO(), pendingSync })
+  );
+}
+
+/** Debounced push to Supabase — never silent on failure, see markSynced()/markSyncFailed(). */
 let pushTimer = null;
 function schedulePush(getState) {
   if (typeof window === "undefined") return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => pushToSupabase(persistableSlice(getState())), 800);
+  pushTimer = setTimeout(async () => {
+    if (!isSupabaseConfigured()) return; // nothing to sync to — not a failure
+    const state = getState();
+    const ok = await pushToSupabase(persistableSlice(state));
+    if (ok) state.markSynced();
+    else state.markSyncFailed();
+  }, 800);
 }
 
 async function pushToSupabase(state) {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) return false;
   try {
-    await fetch("/api/sync", {
+    const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state }),
     });
+    return res.ok;
   } catch {
-    // offline or Supabase unreachable — localStorage already has the change,
-    // next mutation (or next mount's hydrate) will retry the push.
+    return false;
   }
 }
 
 /**
  * Build a minimal "state slice" object. We don't persist ephemeral
- * UI state (modals, palettes, save indicators).
+ * UI state (modals, palettes, save indicators, pendingSync).
  */
 function persistableSlice(s) {
   return {
@@ -144,6 +207,7 @@ export const useLifeStore = create((set, get) => ({
   // ---- ephemeral UI state ----
   hydrated: false,
   saveStatus: "idle", // idle | saving | saved | failed
+  pendingSync: false, // true = local has changes Supabase hasn't confirmed yet
   paletteOpen: false,
   quickAddOpen: false,
   quickAddType: "commitment",
@@ -151,83 +215,80 @@ export const useLifeStore = create((set, get) => ({
   // ---- lifecycle ----
   hydrate: async () => {
     const stored = loadFromStorage();
+    const needsResync = Boolean(stored?.__migrated);
+    if (stored) delete stored.__migrated;
 
     // Render local (or fresh seed) immediately — offline-first, never blocks
-    // first paint. Backfill new fields on state saved by older versions.
-    let goalsNeedMigration = false;
-    if (stored) {
-      goalsNeedMigration = (stored.goals || []).some((g) => !g.progressSource);
-      set({
-        ...stored,
-        reflections: stored.reflections ?? initial.reflections,
-        wins: stored.wins ?? initial.wins,
-        letters: stored.letters ?? initial.letters,
-        financeTargets: stored.financeTargets ?? initial.financeTargets,
-        goals: migrateGoals(stored.goals ?? initial.goals),
-        hydrated: true,
-      });
-    } else {
-      set({ hydrated: true });
-    }
+    // first paint. loadFromStorage() already normalized/backfilled it.
+    set(stored ? { ...stored, hydrated: true } : { hydrated: true, pendingSync: false });
 
-    // CRITICAL: never schedule a Supabase push here for a device with no
-    // local copy (fresh browser/private mode/cleared storage) before we've
-    // checked what Supabase already has. persist()'s push is debounced
-    // 800ms — on a slow/cold request that's easily slower than the fetch
-    // below, and a premature push would silently overwrite real synced data
-    // with a brand-new device's empty seed, with no error surfaced anywhere.
-    // Every push below is either gated on "Supabase confirmed empty" or
-    // "local is confirmed newer than remote" — never on ignorance of remote.
     if (!isSupabaseConfigured()) {
-      if (!stored) get().persist();
-      else if (goalsNeedMigration) get().persist();
+      // Makes a misconfigured production build impossible to miss — before
+      // this, a missing env var meant the app silently ran local-only with
+      // no visible sign anywhere.
+      get().warnSupabaseNotConfigured();
+      if (!stored || needsResync) get().persist();
       return;
     }
+
+    // Once Supabase is configured, it is the source of truth. We never
+    // compare timestamps to guess whose copy is "newer" (2026-07-20: a real
+    // incident showed that's unsafe — a device with no real local data
+    // could "win" against genuine synced data just by having no savedAt to
+    // compare). Either this device has confirmed-pending local writes and
+    // we push them, or it doesn't, and remote is trusted unconditionally.
+    const hasPendingLocalChanges = Boolean(stored?.pendingSync) || needsResync;
 
     try {
       const res = await fetch("/api/sync");
       if (!res.ok) {
-        if (!stored) get().persist();
-        else if (goalsNeedMigration) get().persist();
+        if (!stored || needsResync) get().persist();
         return;
       }
-      const { state: remote, updatedAt } = await res.json();
+      const { state: remote } = await res.json();
+
       if (!remote) {
         // Nothing synced yet for this account, confirmed — safe to push.
-        pushToSupabase(persistableSlice(get()));
+        const ok = await pushToSupabase(persistableSlice(get()));
+        if (ok) get().markSynced();
+        else get().markSyncFailed();
         return;
       }
-      const localSavedAt = stored?.savedAt;
-      if (!localSavedAt || (updatedAt && new Date(updatedAt) > new Date(localSavedAt))) {
-        const remoteGoalsNeedMigration = (remote.goals || []).some((g) => !g.progressSource);
-        set({
-          ...remote,
-          reflections: remote.reflections ?? initial.reflections,
-          wins: remote.wins ?? initial.wins,
-          letters: remote.letters ?? initial.letters,
-          financeTargets: remote.financeTargets ?? initial.financeTargets,
-          goals: migrateGoals(remote.goals ?? initial.goals),
-          hydrated: true,
-        });
-        saveToStorage(persistableSlice(get()));
-        if (remoteGoalsNeedMigration) get().persist();
+
+      if (hasPendingLocalChanges) {
+        // This device has writes Supabase hasn't confirmed yet — never
+        // discard them by blindly trusting remote. Push them now instead.
+        const ok = await pushToSupabase(persistableSlice(get()));
+        if (ok) get().markSynced();
+        else get().markSyncFailed();
+        return;
+      }
+
+      // No unconfirmed local changes — Supabase is authoritative, adopt it.
+      // If remote itself needed migrating (old goals missing progressSource,
+      // a field added since it was saved), push the corrected shape back —
+      // otherwise the fix would only live in this device's memory/localStorage
+      // until some unrelated future edit happened to re-sync it.
+      const merged = migrateState(remote);
+      const remoteNeedsResync =
+        JSON.stringify(persistableSlice(merged)) !== JSON.stringify(persistableSlice(remote));
+      set({ ...merged, hydrated: true, pendingSync: remoteNeedsResync });
+      if (remoteNeedsResync) {
+        get().persist();
       } else {
-        // This device's copy is confirmed newer — make sure Supabase catches
-        // up (covers the case where an earlier push failed while offline).
-        // Already includes the migrated goals from the initial set() above.
-        pushToSupabase(persistableSlice(get()));
+        saveToStorage(persistableSlice(get()), { pendingSync: false });
       }
     } catch {
-      // Offline or Supabase unreachable — nothing to race against, safe to
-      // persist locally so this device isn't stuck un-saved; retry next mount.
-      if (!stored) get().persist();
-      else if (goalsNeedMigration) get().persist();
+      // Offline/unreachable — nothing to race against; local stands as-is,
+      // retried automatically on next mount or when the browser reconnects
+      // (retryPendingSync() + the `online` listener in providers.jsx).
+      if (!stored || needsResync) get().persist();
     }
   },
   persist: () => {
-    set({ saveStatus: "saving" });
+    set({ saveStatus: "saving", pendingSync: true });
     try {
-      saveToStorage(persistableSlice(get()));
+      saveToStorage(persistableSlice(get()), { pendingSync: true });
       schedulePush(get);
       // simulate small delay so users see the state
       setTimeout(() => {
@@ -258,11 +319,74 @@ export const useLifeStore = create((set, get) => ({
       }
     }
   },
+  /** Confirmed synced to Supabase — clears the pending flag and any failure notice. */
+  markSynced: () => {
+    set({
+      pendingSync: false,
+      notifications: get().notifications.filter((n) => n.id !== "cloud-sync-failed"),
+    });
+    saveToStorage(persistableSlice(get()), { pendingSync: false });
+  },
+  /** A push to Supabase failed — never silent: keeps pendingSync true, tells the user, retried automatically later. */
+  markSyncFailed: () => {
+    set({ pendingSync: true });
+    // Persist pendingSync:true to localStorage itself, not just in-memory
+    // state — otherwise closing the tab right after a failed push loses the
+    // flag, and the next app open has no way to know a retry is owed.
+    saveToStorage(persistableSlice(get()), { pendingSync: true });
+    if (!get().notifications.some((n) => n.id === "cloud-sync-failed")) {
+      set({
+        notifications: [
+          {
+            id: "cloud-sync-failed",
+            userId: USER_ID,
+            title: "Gagal sync ke server",
+            body: "Perubahan tersimpan di perangkat ini tapi belum sampai ke cloud. Akan dicoba lagi otomatis saat koneksi kembali atau app dibuka lagi.",
+            tone: "warning",
+            read: false,
+            createdAt: nowISO(),
+          },
+          ...get().notifications,
+        ],
+      });
+    }
+  },
+  /** Retries a previously-failed push. Called on app open (hydrate) via pendingSync, and on the browser's `online` event (providers.jsx). */
+  retryPendingSync: async () => {
+    if (!isSupabaseConfigured() || !get().pendingSync) return;
+    const ok = await pushToSupabase(persistableSlice(get()));
+    if (ok) get().markSynced();
+    else get().markSyncFailed();
+  },
+  /** Surfaces a persistent warning if NEXT_PUBLIC_SUPABASE_* env vars are missing from this build. */
+  warnSupabaseNotConfigured: () => {
+    if (isSupabaseConfigured()) return;
+    if (get().notifications.some((n) => n.id === "supabase-not-configured")) return;
+    set({
+      notifications: [
+        {
+          id: "supabase-not-configured",
+          userId: USER_ID,
+          title: "Sync ke cloud tidak aktif",
+          body: "Environment variable Supabase tidak terdeteksi di build ini — data hanya tersimpan di perangkat ini, tidak ke cloud. Cek Vercel Project Settings → Environment Variables.",
+          tone: "warning",
+          read: false,
+          createdAt: nowISO(),
+        },
+        ...get().notifications,
+      ],
+    });
+  },
   reseed: () => {
     const fresh = buildInitialState();
-    set({ ...fresh, hydrated: true });
-    saveToStorage(persistableSlice(fresh));
-    pushToSupabase(persistableSlice(fresh));
+    set({ ...fresh, hydrated: true, pendingSync: false });
+    saveToStorage(persistableSlice(fresh), { pendingSync: false });
+    if (isSupabaseConfigured()) {
+      pushToSupabase(persistableSlice(fresh)).then((ok) => {
+        if (ok) get().markSynced();
+        else get().markSyncFailed();
+      });
+    }
   },
 
   // ---- UI toggles ----

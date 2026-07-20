@@ -228,6 +228,10 @@ localStorage, synced to Supabase for cross-device access (whole-state JSONB blob
 
 Offline-first. Local read/render always happens first; Supabase reconciles in the background and never blocks first paint.
 
+**Reconciliation (hardened 2026-07-20 after a real data-loss incident — see `docs/features/supabase-sync.md` "Reliability hardening"): once Supabase is configured, it is the source of truth. localStorage is a cache plus a staging buffer for writes Supabase hasn't confirmed yet (`pendingSync` flag).** `hydrate()` never compares `savedAt`/`updated_at` timestamps to guess whose copy is newer — that heuristic caused real data loss (a device with no real local data could "win" against genuine synced data simply by having no timestamp to compare). Either this device has confirmed-pending local writes and pushes them, or it doesn't and remote is trusted unconditionally. A failed push is never silent — `pendingSync` persists, a notification shows, and both the next `hydrate()` and the browser's `online` event retry automatically. Never reintroduce timestamp-based "newer wins" reconciliation.
+
+`loadFromStorage()` never rejects/discards a stored state blob outright (e.g. on a `version` mismatch) — `migrateState()` always backfills missing fields from current defaults while preserving every field the blob already has. Never restore a blunt "if version doesn't match, treat as empty" check — that's the shape of bug that silently deletes a user's data on any future schema change.
+
 No authentication. Single hardcoded user (`rafli-akbar`).
 
 Schema already contains userId.
