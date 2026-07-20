@@ -141,19 +141,15 @@ Avoid introducing new libraries.
 
 ---
 
-# Future Ready
+# Persistence (Supabase sync shipped 2026-07-19)
 
 Current persistence:
 
-localStorage
+localStorage, synced to Supabase in the background (whole-state JSONB blob, one row per user) — see docs/features/supabase-sync.md.
 
-Future persistence:
+This already happened — not a future migration to plan for. Every mutation persists to both.
 
-Supabase
-
-Architecture should support migration naturally.
-
-Avoid localStorage-specific assumptions.
+Avoid localStorage-specific assumptions in new code.
 
 ---
 

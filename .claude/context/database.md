@@ -1,14 +1,10 @@
 # Database Philosophy
 
-Current persistence:
+Current persistence (shipped 2026-07-19, see docs/features/supabase-sync.md):
 
-localStorage
+localStorage, synced to Supabase in the background (whole-state JSONB blob, one row per user). Local read/render always happens first — Supabase reconciles after, never blocks first paint.
 
-Future:
-
-Supabase
-
-Architecture should naturally support both.
+This is not aspirational — every addTransaction/addGoal/addSkill/etc. call already persists to both. If data isn't reaching Supabase, that's a bug to find and fix (see hydrate()'s reconcile logic in store.js), never something to route around or disable.
 
 ---
 

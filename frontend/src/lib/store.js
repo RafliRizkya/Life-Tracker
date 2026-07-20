@@ -151,9 +151,12 @@ export const useLifeStore = create((set, get) => ({
   // ---- lifecycle ----
   hydrate: async () => {
     const stored = loadFromStorage();
+
+    // Render local (or fresh seed) immediately — offline-first, never blocks
+    // first paint. Backfill new fields on state saved by older versions.
+    let goalsNeedMigration = false;
     if (stored) {
-      // Backfill new fields on state saved by older versions.
-      const goalsNeedMigration = (stored.goals || []).some((g) => !g.progressSource);
+      goalsNeedMigration = (stored.goals || []).some((g) => !g.progressSource);
       set({
         ...stored,
         reflections: stored.reflections ?? initial.reflections,
@@ -163,28 +166,40 @@ export const useLifeStore = create((set, get) => ({
         goals: migrateGoals(stored.goals ?? initial.goals),
         hydrated: true,
       });
-      if (goalsNeedMigration) get().persist();
     } else {
       set({ hydrated: true });
-      get().persist();
     }
 
-    // Reconcile with Supabase in the background — this device renders from
-    // its local cache immediately above, then upgrades if another device's
-    // copy is newer. Never blocks first paint (offline-first).
-    if (!isSupabaseConfigured()) return;
+    // CRITICAL: never schedule a Supabase push here for a device with no
+    // local copy (fresh browser/private mode/cleared storage) before we've
+    // checked what Supabase already has. persist()'s push is debounced
+    // 800ms — on a slow/cold request that's easily slower than the fetch
+    // below, and a premature push would silently overwrite real synced data
+    // with a brand-new device's empty seed, with no error surfaced anywhere.
+    // Every push below is either gated on "Supabase confirmed empty" or
+    // "local is confirmed newer than remote" — never on ignorance of remote.
+    if (!isSupabaseConfigured()) {
+      if (!stored) get().persist();
+      else if (goalsNeedMigration) get().persist();
+      return;
+    }
+
     try {
       const res = await fetch("/api/sync");
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (!stored) get().persist();
+        else if (goalsNeedMigration) get().persist();
+        return;
+      }
       const { state: remote, updatedAt } = await res.json();
       if (!remote) {
-        // Nothing synced yet for this account — push what we have.
+        // Nothing synced yet for this account, confirmed — safe to push.
         pushToSupabase(persistableSlice(get()));
         return;
       }
       const localSavedAt = stored?.savedAt;
       if (!localSavedAt || (updatedAt && new Date(updatedAt) > new Date(localSavedAt))) {
-        const goalsNeedMigration = (remote.goals || []).some((g) => !g.progressSource);
+        const remoteGoalsNeedMigration = (remote.goals || []).some((g) => !g.progressSource);
         set({
           ...remote,
           reflections: remote.reflections ?? initial.reflections,
@@ -195,14 +210,18 @@ export const useLifeStore = create((set, get) => ({
           hydrated: true,
         });
         saveToStorage(persistableSlice(get()));
-        if (goalsNeedMigration) get().persist();
+        if (remoteGoalsNeedMigration) get().persist();
       } else {
-        // This device's copy is newer or equal — make sure Supabase catches up
-        // (covers the case where an earlier push failed while offline).
+        // This device's copy is confirmed newer — make sure Supabase catches
+        // up (covers the case where an earlier push failed while offline).
+        // Already includes the migrated goals from the initial set() above.
         pushToSupabase(persistableSlice(get()));
       }
     } catch {
-      // Offline or Supabase unreachable — local state stands, retry next mount.
+      // Offline or Supabase unreachable — nothing to race against, safe to
+      // persist locally so this device isn't stuck un-saved; retry next mount.
+      if (!stored) get().persist();
+      else if (goalsNeedMigration) get().persist();
     }
   },
   persist: () => {

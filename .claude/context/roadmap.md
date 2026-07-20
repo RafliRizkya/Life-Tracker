@@ -14,35 +14,31 @@ Single-user.
 
 Offline-first.
 
-Local persistence.
+Local persistence, synced to Supabase (shipped 2026-07-19 — see docs/features/supabase-sync.md, not a future item anymore).
+
+AI Assistant — read + suggest-only write (shipped, pulled forward ahead of Phase 3 — see docs/features/ai-assistant.md).
 
 ---
 
-# Phase 2
-
-Supabase synchronization.
-
-Cloud storage.
+# Phase 2 (Supabase synchronization: done — remaining items still open)
 
 Evidence uploads.
 
 Search.
 
-Cross-device support.
+Cross-device support (done, part of Supabase sync).
 
 ---
 
-# Phase 3
+# Phase 3 (AI Assistant: Q&A + suggest-only write shipped — remaining items still open)
 
-AI Assistant.
+Natural language input (partially done — free-text transaction parsing + chat write-proposals).
 
-Natural language input.
-
-WhatsApp capture.
+WhatsApp capture (built, paused — see docs/features/whatsapp-integration.md).
 
 Voice capture.
 
-Automatic insights.
+Automatic insights (rule-based insights already shipped in Phase 1; this item is about deeper automation).
 
 Semantic search.
 
