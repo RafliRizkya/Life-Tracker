@@ -509,6 +509,16 @@ Merged Reflection + Weekly Review, 2026-07-18 (`docs/prompt/merge-weekly-reflect
 - **Progress**: toggle "Tandai dipahami" per section, persisted ke localStorage key sendiri (`guide-progress::v1` — preferensi UI, sengaja di luar store utama), progress bar "N dari 8 dipahami"
 - **Motion**: expand/collapse 300ms, statis bila reduced motion (store flag atau OS)
 
+#### FR-CROSS-08: AI Chat Assistant — Q&A + Suggest-Only Write (`/ai`, 2026-07-20 write capability — `docs/features/ai-assistant.md`)
+- **Read (unchanged)**: `detectIntent(message)` → `buildContext(store, intent)` → `POST /api/ai/chat`, streamed markdown answer with a citation badge. See privacy rule at FR-COMPASS's cross-reference below.
+- **Write (2026-07-20, explicitly requested)**: `looksLikeActionRequest(message)` — keyword heuristic — routes to a separate buffered path instead of the streamed one:
+  - `buildActionableEntities(store)` builds an id+label lookup (goals/commitments/skills/careerMilestones/reminders only — no reflection/letter/review content, ever) → `POST /api/ai/action-request { message, actionContext }`
+  - Server validates the model's JSON response against a fixed whitelist (`ACTION_DEFS` in `actionSchema.js`) — unknown types or invalid/incomplete params are dropped silently, never guessed at; `update*` actions' `id` must exactly match one from `actionContext`, re-checked server-side independently of the prompt instruction
+  - **Whitelist**: `addTransaction`, `addGoal`/`updateGoal`, `addCommitment`/`toggleCommitment`, `addSkill`/`updateSkill`/`practiceSkill`, `addCareerMilestone`/`updateCareerMilestone`, `addReminder`/`updateReminder`, `setWeeklyBudget`, `setFinanceTarget` — **create + update only**; no `remove*`/`archive*` action exists in the schema at all (not filtered, structurally absent)
+  - **Approval UI**: `ActionProposalCard` — one checkbox per proposed action with a human-readable summary, "Terapkan"/"Abaikan". Terapkan calls `applyAction()`, which is a normal `useLifeStore` action call per checked item (`addTransaction`, `updateGoal`, etc.) — the model never writes directly
+  - **Excluded entirely**: Reflection, Letter, Weekly Review — the assistant cannot propose actions for these under any circumstance (enforced by the whitelist having no corresponding action type, plus an explicit prompt instruction to decline and explain if asked)
+  - **Rate limit**: shares `AI_MAX_REQUESTS_PER_DAY` with every other AI route
+
 ---
 
 ## 4. Kebutuhan Non-Fungsional
@@ -795,10 +805,11 @@ Current value for either fund = `sum(expense transactions matching its category)
 - `month`: valid "YYYY-MM" format
 - `weeklyOverrides[Wn]`: numeric, ≥ 0 when set (2026-07-19)
 
-### 6.6 AI-generated content (action plans, financial plans)
+### 6.6 AI-generated content (action plans, financial plans, chat action proposals)
 - Never trusted as fact — `extractJson()` returns `null` on any parse failure, callers surface a "try again" error, never a partial/guessed structure
 - Step/tip/category strings are length-capped server-side (title ≤ 80 chars, note/reason ≤ 160 chars) before reaching the client
 - `categoryAdvice[].category` is not validated against TX_CATEGORIES server-side — the client only renders a "Terapkan" button per entry the model returned, and `upsertBudget()` accepts any category string (matches existing manual-add behavior, no new validation gap)
+- **Chat action proposals (2026-07-20)**: every action the model proposes is validated against a fixed type whitelist (`ACTION_DEFS`) — unrecognized `type` or a `normalize()` failure (missing/invalid required field, `id` not present in the given `actionContext`) drops that one action silently rather than surfacing a guessed/partial version; the model's numeric/string fields are all clamped or length-capped server-side before a summary is ever shown to the user (e.g. `amount` clamped to `[1, 1_000_000_000]`, `progress` to `[0, 100]`)
 
 ---
 
@@ -828,7 +839,8 @@ Current value for either fund = `sum(expense transactions matching its category)
 | FR-COMPASS-01/02 | BerbenahSection mode toggle | - | compass/page.js |
 | FR-COMPASS-02 (history fix) | ReviewDetail drawer | setSelectedReview (local state) | components/compass/WeeklyRitual.jsx |
 | FR-COMPASS-14 | AIReflectionResponse | - (read-only response, no store write) | components/compass/AIReflectionResponse.jsx |
+| FR-CROSS-08 | ActionProposalCard | applyAction → (addTransaction/updateGoal/addCommitment/toggleCommitment/addSkill/updateSkill/practiceSkill/addCareerMilestone/updateCareerMilestone/addReminder/updateReminder/setWeeklyBudget/setFinanceTarget) | app/ai/page.js, components/ai/ActionProposalCard.jsx |
 
 ---
 
-*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04), 19-20 Juli 2026 untuk Goals/Finance AI upgrade, Supabase sync, weekly budget rewrite, Dana Darurat/Tabungan funds, Life Compass rework (tab merge + AI reflection response), dan Goal Progress Sources (FR-GOAL-12 — every goal's progress traces to an explicit manual/Finance/Skill source, no hardcoded placeholders).*
+*Dokumen ini di-generate dari analisis lengkap codebase pada 17 Juli 2026, diperbarui 18 Juli 2026 untuk mencerminkan Life Compass (merged Reflection + Weekly Review, FR-REFLECT/FR-REVIEW → FR-COMPASS) dan redesign Career Journey dual-track (FR-CAREER-03/04), 19-20 Juli 2026 untuk Goals/Finance AI upgrade, Supabase sync, weekly budget rewrite, Dana Darurat/Tabungan funds, Life Compass rework (tab merge + AI reflection response), Goal Progress Sources (FR-GOAL-12 — every goal's progress traces to an explicit manual/Finance/Skill source, no hardcoded placeholders), dan AI Chat Assistant suggest-only write capability (FR-CROSS-08 — create/update proposals with per-action user approval, no delete, Reflection/Letter/Weekly Review excluded).*

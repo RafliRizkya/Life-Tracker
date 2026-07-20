@@ -39,9 +39,11 @@ export default function ChatThread({ messages, waitingForFirstToken }) {
       {messages.map((m, i) => (
         <ChatMessage
           key={m.id}
+          id={m.id}
           role={m.role}
           content={m.content}
           manifest={m.manifest}
+          proposal={m.proposal}
           ghost={streaming && i === messages.length - 1 && m.role === "assistant"}
           reducedMotion={reducedMotion}
         />

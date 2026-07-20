@@ -3,17 +3,50 @@
 import { useEffect, useState } from "react";
 import { useLifeStore } from "@/lib/store";
 import { useAiStore } from "@/lib/aiStore";
-import { detectIntent, buildContext } from "@/lib/ai/contextBuilder";
+import { detectIntent, buildContext, looksLikeActionRequest } from "@/lib/ai/contextBuilder";
+import { buildActionableEntities } from "@/lib/ai/actionSchema";
 import { SectionHeader, EmptyState } from "@/components/ui";
 import ChatThread from "@/components/ai/ChatThread";
 import ChatInput from "@/components/ai/ChatInput";
-import { Bot, Lock } from "lucide-react";
+import { Bot, Sparkles } from "lucide-react";
 
 const STARTER_PROMPTS = [
   "Ringkas kondisi keuanganku bulan ini",
   "Sejauh apa aku menuju target Data Analyst?",
-  "Skill apa yang paling lama tidak kulatih?",
+  "Catat pengeluaran kopi 20000 hari ini",
 ];
+
+async function proposeAction({ text, storeSnapshot, aiStore, setWaiting }) {
+  const actionContext = buildActionableEntities(storeSnapshot);
+
+  let body;
+  try {
+    const res = await fetch("/api/ai/action-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, actionContext }),
+    });
+    body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setWaiting(false);
+      aiStore.addMessage("assistant", body?.error || "Terjadi kesalahan, coba lagi.");
+      return;
+    }
+  } catch {
+    setWaiting(false);
+    aiStore.addMessage("assistant", "Gagal terhubung ke server. Coba lagi.");
+    return;
+  }
+
+  setWaiting(false);
+  const { actions = [], rejected = [], reply } = body;
+  aiStore.addMessage(
+    "assistant",
+    reply || "Baik.",
+    undefined,
+    actions.length > 0 ? { actions, rejected, status: "pending" } : undefined
+  );
+}
 
 async function streamInto({ text, storeSnapshot, priorHistory, aiStore, setWaiting }) {
   const intent = detectIntent(text);
@@ -107,13 +140,17 @@ export default function AiPage() {
     setWaitingForFirstToken(true);
 
     const storeSnapshot = useLifeStore.getState();
-    await streamInto({
-      text,
-      storeSnapshot,
-      priorHistory,
-      aiStore,
-      setWaiting: setWaitingForFirstToken,
-    });
+    if (looksLikeActionRequest(text)) {
+      await proposeAction({ text, storeSnapshot, aiStore, setWaiting: setWaitingForFirstToken });
+    } else {
+      await streamInto({
+        text,
+        storeSnapshot,
+        priorHistory,
+        aiStore,
+        setWaiting: setWaitingForFirstToken,
+      });
+    }
     setStreaming(false);
   }
 
@@ -121,14 +158,14 @@ export default function AiPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-5 md:px-8 pt-10 pb-24 flex flex-col min-h-[calc(100vh-64px)]">
-      <SectionHeader eyebrow="Asisten AI" title="Tanya apa saja." subtitle="Jawaban berdasarkan datamu sendiri — Finance, Goals, Career, Skills, Life Compass." />
+      <SectionHeader eyebrow="Asisten AI" title="Tanya, atau minta dicatat." subtitle="Jawaban berdasarkan datamu sendiri — Finance, Goals, Career, Skills, Life Compass. Bisa juga diminta mencatat/mengubah data, dengan review & approval-mu tiap kali." />
 
       <div className="flex-1">
         {messages.length === 0 ? (
           <EmptyState
             icon={Bot}
             title="Mulai percakapan"
-            body="Aku hanya bisa menjawab, belum bisa mengubah data. Coba salah satu ini:"
+            body="Tanya soal datamu, atau minta aku catat/ubah sesuatu — kamu tetap yang approve sebelum apa pun tersimpan. Coba salah satu ini:"
             action={
               <div className="flex flex-wrap gap-2 justify-center">
                 {STARTER_PROMPTS.map((p) => (
@@ -152,7 +189,7 @@ export default function AiPage() {
       <div className="sticky bottom-4 mt-4">
         <ChatInput onSend={sendMessage} disabled={streaming} />
         <div className="eyebrow mt-2 text-center text-ink-muted flex items-center justify-center gap-1.5">
-          <Lock className="h-2.5 w-2.5" /> Read-only — asisten hanya membaca datamu, tidak pernah mengubahnya
+          <Sparkles className="h-2.5 w-2.5" /> Perubahan data selalu butuh persetujuanmu — asisten tidak pernah menyimpan sendiri
         </div>
       </div>
     </div>

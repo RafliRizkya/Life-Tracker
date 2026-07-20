@@ -3,6 +3,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import clsx from "clsx";
+import ActionProposalCard from "./ActionProposalCard";
 
 const MODULE_LABELS = {
   finance: "Finance",
@@ -19,7 +20,7 @@ const MODULE_LABELS = {
  * a soft surface — deliberately lighter than `card`, which elsewhere means
  * "saved/committed content" — while the citation badge keeps full prominence.
  */
-export default function ChatMessage({ role, content, manifest, ghost = false, reducedMotion = false }) {
+export default function ChatMessage({ id, role, content, manifest, proposal, ghost = false, reducedMotion = false }) {
   const isUser = role === "user";
   return (
     <div className={clsx("flex", isUser ? "justify-end" : "justify-start")}>
@@ -45,6 +46,7 @@ export default function ChatMessage({ role, content, manifest, ghost = false, re
             Sumber: {manifest.map((m) => MODULE_LABELS[m] || m).join(" · ")}
           </div>
         )}
+        {!isUser && proposal && <ActionProposalCard messageId={id} proposal={proposal} />}
       </div>
     </div>
   );

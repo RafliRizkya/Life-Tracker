@@ -44,11 +44,22 @@ export const useAiStore = create((set, get) => ({
     set({ messages: stored?.messages || [], hydrated: true });
   },
 
-  addMessage: (role, content, manifest) => {
-    const msg = { id: nanoid(10), role, content, manifest, createdAt: new Date().toISOString() };
+  /** `proposal` (2026-07-20): { actions, rejected, status: "pending"|"approved"|"dismissed" } for
+   * the chat assistant's write-proposal path — undefined/null for a normal read-only answer. */
+  addMessage: (role, content, manifest, proposal) => {
+    const msg = { id: nanoid(10), role, content, manifest, proposal: proposal || null, createdAt: new Date().toISOString() };
     set({ messages: [...get().messages, msg] });
     saveToStorage(get());
     return msg;
+  },
+
+  setProposalStatus: (messageId, status) => {
+    set({
+      messages: get().messages.map((m) =>
+        m.id === messageId && m.proposal ? { ...m, proposal: { ...m.proposal, status } } : m
+      ),
+    });
+    saveToStorage(get());
   },
 
   appendToLastMessage: (chunk) => {

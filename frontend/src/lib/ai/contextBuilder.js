@@ -35,6 +35,21 @@ export const MODULE_KEYWORDS = {
 
 const SUMMARY_WORDS = /ringkas|overview|semua|summary|rangkum|kondisi(ku)?\b/i;
 
+/**
+ * Cheap keyword heuristic (2026-07-20) — same style as MODULE_KEYWORDS —
+ * that decides whether a chat message routes to the write-proposal path
+ * (`/api/ai/action-request`) instead of the normal read-only streamed
+ * answer. Deliberately permissive: a false positive just means the model
+ * itself replies with `actions: []` and a normal answer in `reply` (see
+ * actionRequestPrompt.js), so this only needs to avoid obvious misses, not
+ * be perfectly precise.
+ */
+const ACTION_WORDS = /\b(catat|tambah(kan)?|buat(kan)?|update|ubah|ganti|ubahkan|setel|set\b|atur|tandai|selesaikan|centang|simpan|masukkan|hapus|update(kan)?)\b/i;
+
+export function looksLikeActionRequest(message) {
+  return ACTION_WORDS.test(message || "");
+}
+
 /** Returns a Set of module keys relevant to the message, or {"all"} for broad/summary asks. */
 export function detectIntent(message) {
   const text = message || "";
